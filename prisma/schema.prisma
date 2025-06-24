@@ -1,0 +1,54 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum status {
+  NOW
+  SENT
+  SCHEDULED
+  DELIVERED
+  READ
+  FAILED
+}
+
+model WhatsAppClient {
+  id            Int       @id @default(autoincrement())
+  name          String
+  description   String?
+  sessionFolder String
+  secretKey     String // kunci rahasia untuk enkripsi pesan
+  status        Boolean   @default(false)
+  replyTemplate String? // nama template balasan yang digunakan
+  isReply       Boolean   @default(false)
+  webhookUrl    String? // URL webhook untuk menerima notifikasi
+  messages      Message[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Message {
+  id       Int            @id @default(autoincrement())
+  clientId Int
+  client   WhatsAppClient @relation(fields: [clientId], references: [id])
+
+  to          String
+  body        String
+  direction   String // "IN" / "OUT"
+  status      status    @default(SENT) // status pesan
+  scheduledAt DateTime? // untuk pesan terjadwal
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

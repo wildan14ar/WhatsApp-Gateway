@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>WhatsApp Gateway</title>
+    <!-- Tailwind CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-gray-50 text-gray-800">
+    <header class="bg-white shadow-md sticky top-0 z-10">
+      <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+        <h1 class="text-2xl font-bold text-green-600">
+          <a href="/">WhatsApp Gateway</a>
+        </h1>
+        <nav class="space-x-6">
+          <a href="/clients" class="text-gray-700 hover:text-green-600 font-medium">Clients</a>
+        </nav>
+      </div>
+      <hr class="border-gray-200" />
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 py-6">
+      <%- body %>
+    </main>
+
+    <!-- Socket.IO client -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        var socket = io();
+        socket.on("connect", () =>
+          console.log("Socket.IO connected:", socket.id)
+        );
+        socket.on("disconnect", () => console.log("Socket.IO disconnected"));
+        socket.on("status", ({ clientId, status }) => {
+          const td = document.getElementById(`status-${clientId}`);
+          if (td) td.textContent = status;
+        });
+        socket.on("qr", ({ clientId, qr }) => {
+          const img = document.getElementById(`qr-${clientId}`);
+          if (!img) {
+            console.warn("No <img> for client", clientId);
+            return;
+          }
+          img.src = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(
+            qr
+          )}&size=200x200`;
+          img.style.display = "block";
+        });
+      });
+    </script>
+  </body>
+</html>

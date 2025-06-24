@@ -1,0 +1,178 @@
+<div class="max-w-6xl mx-auto p-8 space-y-10 font-sans">
+  <!-- Header -->
+  <h2 class="text-4xl font-bold text-gray-800 text-center">Client Details</h2>
+
+  <!-- Main Grid -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <!-- QR & Status -->
+    <aside class="bg-gray-50 border border-gray-200 rounded-xl p-6 flex flex-col items-center space-y-4">
+      <div class="relative w-48 h-48">
+        <img id="qr-<%= client.id %>" class="w-full h-full object-contain opacity-0 transition-opacity" alt="QR Code" />
+        <div id="qr-placeholder-<%= client.id %>" class="absolute inset-0 flex items-center justify-center text-gray-400">
+          <span>QR code akan muncul di sini</span>
+        </div>
+      </div>
+      <button
+        onclick="socket.emit('request-qr', { clientId: '<%= client.id %>' })"
+        class="w-full py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-blue-400"
+      >
+        Generate QR
+      </button>
+      <span class="px-3 py-1 rounded-full font-medium text-sm <%= client.status ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' %>">
+        <%= client.status ? 'Active' : 'Inactive' %>
+      </span>
+    </aside>
+
+    <!-- Edit Form -->
+    <section class="lg:col-span-2 bg-white border border-gray-200 rounded-xl p-8">
+      <form id="edit-form" action="/clients/<%= client.id %>" method="put" class="space-y-6">
+        <div class="space-y-4">
+          <div>
+            <label for="name" class="block text-gray-700 font-medium">Client Name</label>
+            <input
+              id="name"
+              name="name"
+              type="text"
+              value="<%= client.name %>"
+              required
+              class="mt-1 w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-indigo-500 focus:border-indigo-500"
+            />
+          </div>
+          <div>
+            <label for="secretKey" class="block text-gray-700 font-medium">New Secret Key</label>
+            <input
+              id="secretKey"
+              name="secretKey"
+              type="password"
+              placeholder="••••••••"
+              class="mt-1 w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-indigo-500 focus:border-indigo-500"
+            />
+            <p class="text-xs text-gray-500 mt-1">Leave blank to keep current secret.</p>
+          </div>
+        </div>
+
+        <div class="flex justify-end space-x-4">
+          <a href="/clients" class="px-5 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100">Cancel</a>
+          <button type="submit" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium">Update</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <!-- Send & Schedule -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <!-- Send -->
+    <div class="bg-white border border-gray-200 rounded-xl p-6">
+      <h3 class="text-2xl font-semibold mb-4">Kirim Pesan</h3>
+      <form id="send-message-form" action="/clients/<%= client.id %>/messages/send" method="post" class="space-y-4">
+        <div>
+          <label for="to-send" class="block text-gray-700">To (WA ID)</label>
+          <input id="to-send" name="to" required class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500" />
+        </div>
+        <div>
+          <label for="body-send" class="block text-gray-700">Pesan</label>
+          <textarea id="body-send" name="body" rows="3" required class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
+        </div>
+        <button type="submit" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg">Kirim</button>
+      </form>
+    </div>
+
+    <!-- Schedule -->
+    <div class="bg-white border border-gray-200 rounded-xl p-6">
+      <h3 class="text-2xl font-semibold mb-4">Jadwalkan Pesan</h3>
+      <form id="schedule-message-form" action="/clients/<%= client.id %>/messages/schedule" method="post" class="space-y-4">
+        <div>
+          <label for="to-sched" class="block text-gray-700">To (WA ID)</label>
+          <input id="to-sched" name="to" required class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-yellow-500 focus:border-yellow-500" />
+        </div>
+        <div>
+          <label for="body-sched" class="block text-gray-700">Pesan</label>
+          <textarea id="body-sched" name="body" rows="3" required class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-yellow-500 focus:border-yellow-500"></textarea>
+        </div>
+        <div>
+          <label for="scheduledAt" class="block text-gray-700">Waktu</label>
+          <input id="scheduledAt" type="datetime-local" name="scheduledAt" required class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-yellow-500 focus:border-yellow-500" />
+        </div>
+        <button type="submit" class="w-full py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg">Jadwalkan</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Webhook & Auto-Reply -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <!-- Webhook -->
+    <div class="bg-white border border-gray-200 rounded-xl p-6">
+      <h3 class="text-2xl font-semibold mb-4">Webhook Forwarding</h3>
+      <form id="webhook-form" action="/clients/<%= client.id %>/webhook" method="patch" class="space-y-4">
+        <div>
+          <label for="webhookUrl" class="block text-gray-700">URL Webhook</label>
+          <input id="webhookUrl" name="webhookUrl" type="url" placeholder="https://example.com/webhook" value="<%= client.webhookUrl || '' %>" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-purple-500 focus:border-purple-500" />
+        </div>
+        <button type="submit" class="w-full py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg">Simpan Webhook</button>
+      </form>
+    </div>
+
+    <!-- Auto-Reply -->
+    <div class="bg-white border border-gray-200 rounded-xl p-6">
+      <h3 class="text-2xl font-semibold mb-4">Auto-Reply</h3>
+      <form id="auto-reply-form" action="/clients/<%= client.id %>/auto-reply" method="patch" class="space-y-4">
+        <div class="flex items-center">
+          <input id="isReply" type="checkbox" name="isReply" value="true" class="h-5 w-5 text-indigo-600 border-gray-300 rounded" <%= client.isReply ? 'checked' : '' %> />
+          <label for="isReply" class="ml-2 text-gray-700">Aktifkan Auto-Reply</label>
+        </div>
+        <div>
+          <label for="replyTemplate" class="block text-gray-700">Template Balasan</label>
+          <textarea id="replyTemplate" name="replyTemplate" rows="2" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500" <%= client.isReply ? '' : 'disabled' %>><%= client.replyTemplate || '' %></textarea>
+        </div>
+        <button type="submit" class="w-full py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg">Simpan</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Script -->
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const socket = io();
+
+    socket.on('qr', ({ clientId, qr }) => {
+      const img = document.getElementById(`qr-${clientId}`);
+      const placeholder = document.getElementById(`qr-placeholder-${clientId}`);
+      img.src = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qr)}&size=300x300`;
+      placeholder.classList.add('hidden');
+      img.classList.remove('opacity-0');
+    });
+
+    const checkbox = document.getElementById('isReply');
+    const textarea = document.getElementById('replyTemplate');
+    if (checkbox && textarea) checkbox.addEventListener('change', () => textarea.disabled = !checkbox.checked);
+
+    const handleAjaxForm = (formId, method = 'POST', extraHandler = null) => {
+      const form = document.getElementById(formId);
+      if (!form) return;
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(form);
+        let data = Object.fromEntries(formData.entries());
+
+        if (extraHandler) data = extraHandler(data, form);
+
+        const res = await fetch(form.action, {
+          method: method.toUpperCase(),
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+        alert(res.ok ? 'Berhasil!' : 'Gagal.');
+      });
+    };
+
+    handleAjaxForm('edit-form', 'PUT');
+    handleAjaxForm('send-message-form');
+    handleAjaxForm('schedule-message-form');
+    handleAjaxForm('webhook-form', 'PATCH');
+    handleAjaxForm('auto-reply-form', 'PATCH', (data, form) => {
+      data.isReply = form.querySelector('#isReply').checked;
+      return data;
+    });
+  });
+</script>
