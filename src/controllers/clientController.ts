@@ -192,7 +192,7 @@ export async function updateAutoReply(req: Request, res: Response) {
 }
 
 export async function updateWebhook(req: Request, res: Response) {
-  const clientId = +req.params.id;  
+  const clientId = +req.params.id;
   const { webhookUrl } = req.body;
 
   try {

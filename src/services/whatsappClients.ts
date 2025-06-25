@@ -105,17 +105,36 @@ export const initWhatsAppClients = async () => {
 };
 
 // Kirim pesan media / teks
+function normalizeToChatId(raw: string): string {
+  // 1) Hilangkan semua non-digit
+  let num = raw.replace(/\D+/g, '');
+  // 2) Pastikan kode internasional (default: Indonesia 62)
+  if (!num.startsWith('62')) {
+    num = num.replace(/^0+/, '');
+    num = '62' + num;
+  }
+  // 3) Tambah suffix @c.us
+  return `${num}@c.us`;
+}
+
 export const sendWhatsAppMessage = async (
   clientId: number,
-  to: string,
-  body: string,
+  chatId: string,
+  text: string,
   media?: { filename: string; mimetype: string; data: Buffer }
 ) => {
   const client = clients.get(clientId);
-  if (!client) throw new Error(`Client ${clientId} not initialized`);
+  if (!client) {
+    throw new Error(`Client ${clientId} belum diinisialisasi`);
+  }
 
-  const chat = await client.getChatById(to);
-  if (!chat) throw new Error(`Chat with ${to} not found`);
+  chatId = normalizeToChatId(chatId)
+  text = text || 'swasasalam';
+
+  console.log(`Sending message from client ${clientId} to ${chatId}:`, text);
+
+  // Jika perlu tunggu client ready
+  // await readyMap.get(clientId);
 
   if (media) {
     const mediaMessage = new MessageMedia(
@@ -123,8 +142,8 @@ export const sendWhatsAppMessage = async (
       media.data.toString('base64'),
       media.filename
     );
-    return await chat.sendMessage(mediaMessage, { caption: body });
+    return client.sendMessage(chatId, mediaMessage, { caption: text });
   } else {
-    return await chat.sendMessage(body);
+    return client.sendMessage(chatId, text);
   }
 };
