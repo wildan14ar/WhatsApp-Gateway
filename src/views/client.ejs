@@ -7,8 +7,15 @@
     <!-- QR & Status -->
     <aside class="bg-gray-50 border border-gray-200 rounded-xl p-6 flex flex-col items-center space-y-4">
       <div class="relative w-48 h-48">
-        <img id="qr-<%= client.id %>" class="w-full h-full object-contain opacity-0 transition-opacity" alt="QR Code" />
-        <div id="qr-placeholder-<%= client.id %>" class="absolute inset-0 flex items-center justify-center text-gray-400">
+        <img 
+          id="qr-<%= client.id %>" 
+          class="w-full h-full object-contain opacity-0 transition-opacity" 
+          alt="QR Code" 
+        />
+        <div 
+          id="qr-placeholder-<%= client.id %>" 
+          class="absolute inset-0 flex items-center justify-center text-gray-400"
+        >
           <span>QR code akan muncul di sini</span>
         </div>
       </div>
@@ -25,7 +32,8 @@
 
     <!-- Edit Form -->
     <section class="lg:col-span-2 bg-white border border-gray-200 rounded-xl p-8">
-      <form id="edit-form" action="/clients/<%= client.id %>" method="put" class="space-y-6">
+      <form id="edit-form" class="ajax-form space-y-6" action="/clients/<%= client.id %>" method="POST">
+        <input type="hidden" name="_method" value="PUT">
         <div class="space-y-4">
           <div>
             <label for="name" class="block text-gray-700 font-medium">Client Name</label>
@@ -59,12 +67,48 @@
     </section>
   </div>
 
+  <!-- Received Messages -->
+  <section class="mt-10 bg-white border border-gray-200 rounded-xl p-6">
+    <h3 class="text-2xl font-semibold mb-4">Pesan Diterima</h3>
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Isi Pesan</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Waktu Diterima</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          <% if (client.messages.length === 0) { %>
+            <tr>
+              <td colspan="4" class="px-6 py-4 whitespace-nowrap text-center text-gray-500">Belum ada pesan</td>
+            </tr>
+          <% } else { %>
+            <% client.messages.forEach(message => { %>
+              <tr>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700"><%= message.id %></td>
+                <td class="px-6 py-4 whitespace-normal text-sm text-gray-700"><%= message.body %></td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <%= new Date(message.createdAt).toLocaleString('id-ID', {
+                        day: '2-digit', month: 'short', year: 'numeric',
+                        hour: '2-digit', minute: '2-digit'
+                      }) %>
+                </td>
+              </tr>
+            <% }) %>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   <!-- Send & Schedule -->
   <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
     <!-- Send -->
     <div class="bg-white border border-gray-200 rounded-xl p-6">
       <h3 class="text-2xl font-semibold mb-4">Kirim Pesan</h3>
-      <form id="send-message-form" action="/clients/<%= client.id %>/messages/send" method="post" class="space-y-4">
+      <form id="send-message-form" class="ajax-form space-y-4" action="/clients/<%= client.id %>/messages/send" method="POST">
         <div>
           <label for="to-send" class="block text-gray-700">To (WA ID)</label>
           <input id="to-send" name="to" required class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500" />
@@ -80,7 +124,7 @@
     <!-- Schedule -->
     <div class="bg-white border border-gray-200 rounded-xl p-6">
       <h3 class="text-2xl font-semibold mb-4">Jadwalkan Pesan</h3>
-      <form id="schedule-message-form" action="/clients/<%= client.id %>/messages/schedule" method="post" class="space-y-4">
+      <form id="schedule-message-form" class="ajax-form space-y-4" action="/clients/<%= client.id %>/messages/schedule" method="POST">
         <div>
           <label for="to-sched" class="block text-gray-700">To (WA ID)</label>
           <input id="to-sched" name="to" required class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-yellow-500 focus:border-yellow-500" />
@@ -98,81 +142,236 @@
     </div>
   </div>
 
-  <!-- Webhook & Auto-Reply -->
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-    <!-- Webhook -->
-    <div class="bg-white border border-gray-200 rounded-xl p-6">
-      <h3 class="text-2xl font-semibold mb-4">Webhook Forwarding</h3>
-      <form id="webhook-form" action="/clients/<%= client.id %>/webhook" method="patch" class="space-y-4">
-        <div>
-          <label for="webhookUrl" class="block text-gray-700">URL Webhook</label>
-          <input id="webhookUrl" name="webhookUrl" type="url" placeholder="https://example.com/webhook" value="<%= client.webhookUrl || '' %>" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-purple-500 focus:border-purple-500" />
-        </div>
-        <button type="submit" class="w-full py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg">Simpan Webhook</button>
-      </form>
-    </div>
-
-    <!-- Auto-Reply -->
-    <div class="bg-white border border-gray-200 rounded-xl p-6">
-      <h3 class="text-2xl font-semibold mb-4">Auto-Reply</h3>
-      <form id="auto-reply-form" action="/clients/<%= client.id %>/auto-reply" method="patch" class="space-y-4">
-        <div class="flex items-center">
-          <input id="isReply" type="checkbox" name="isReply" value="true" class="h-5 w-5 text-indigo-600 border-gray-300 rounded" <%= client.isReply ? 'checked' : '' %> />
-          <label for="isReply" class="ml-2 text-gray-700">Aktifkan Auto-Reply</label>
-        </div>
-        <div>
-          <label for="replyTemplate" class="block text-gray-700">Template Balasan</label>
-          <textarea id="replyTemplate" name="replyTemplate" rows="2" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500" <%= client.isReply ? '' : 'disabled' %>><%= client.replyTemplate || '' %></textarea>
-        </div>
-        <button type="submit" class="w-full py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg">Simpan</button>
-      </form>
-    </div>
+  <!-- Auto-Reply -->
+  <div class="bg-white border border-gray-200 rounded-xl p-6">
+    <h3 class="text-2xl font-semibold mb-4">Auto-Reply</h3>
+    <form id="auto-reply-form" class="ajax-form space-y-4" action="/clients/<%= client.id %>/auto-reply" method="POST">
+      <input type="hidden" name="_method" value="PATCH">
+      <div class="flex items-center">
+        <input
+          id="isReplyPersonal"
+          type="checkbox"
+          name="isReplyPersonal"
+          value="true"
+          class="h-5 w-5 text-indigo-600 border-gray-300 rounded"
+          <%= client.isReplyPersonal ? 'checked' : '' %>
+        />
+        <label for="isReplyPersonal" class="ml-2 text-gray-700">Balas Otomatis Personal</label>
+      </div>
+      <div>
+        <label for="replyTemplatePersonal" class="block text-gray-700">Template Personal</label>
+        <textarea
+          id="replyTemplatePersonal"
+          name="replyTemplatePersonal"
+          rows="2"
+          <%= client.isReplyPersonal ? '' : 'disabled' %>
+          class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
+        ><%= client.replyTemplatePersonal || '' %></textarea>
+      </div>
+      <div class="flex items-center">
+        <input
+          id="isReplyGroup"
+          type="checkbox"
+          name="isReplyGroup"
+          value="true"
+          class="h-5 w-5 text-indigo-600 border-gray-300 rounded"
+          <%= client.isReplyGroup ? 'checked' : '' %>
+        />
+        <label for="isReplyGroup" class="ml-2 text-gray-700">Balas Otomatis di Grup</label>
+      </div>
+      <div>
+        <label for="replyTemplateGroup" class="block text-gray-700">Template Grup</label>
+        <textarea
+          id="replyTemplateGroup"
+          name="replyTemplateGroup"
+          rows="2"
+          <%= client.isReplyGroup ? '' : 'disabled' %>
+          class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
+        ><%= client.replyTemplateGroup || '' %></textarea>
+      </div>
+      <div class="flex items-center">
+        <input
+          id="isReplyTag"
+          type="checkbox"
+          name="isReplyTag"
+          value="true"
+          class="h-5 w-5 text-indigo-600 border-gray-300 rounded"
+          <%= client.isReplyTag ? 'checked' : '' %>
+        />
+        <label for="isReplyTag" class="ml-2 text-gray-700">Balas Saat Ditag di Grup</label>
+      </div>
+      <div>
+        <label for="replyTemplateTag" class="block text-gray-700">Template Mention Grup</label>
+        <textarea
+          id="replyTemplateTag"
+          name="replyTemplateTag"
+          rows="2"
+          <%= client.isReplyTag ? '' : 'disabled' %>
+          class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
+        ><%= client.replyTemplateTag || '' %></textarea>
+      </div>
+      <button type="submit" class="w-full py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg">Simpan Auto-Reply</button>
+    </form>
   </div>
-</div>
 
-<!-- Script -->
-<script>
-  document.addEventListener('DOMContentLoaded', () => {
-    const socket = io();
+  <!-- Tambah Webhook Baru -->
+  <section class="mb-8 bg-white border border-gray-200 rounded-xl p-6">
+    <h3 class="text-2xl font-semibold mb-4">Tambah Webhook Baru</h3>
+    <form id="new-webhook-form" class="ajax-form space-y-4" action="/clients/<%= client.id %>/webhook" method="POST">
+      <input type="hidden" name="_method" value="POST">
+      <div>
+        <label for="new-url" class="block text-gray-700">URL Webhook</label>
+        <input
+          id="new-url"
+          name="url"
+          type="url"
+          placeholder="https://example.com/webhook"
+          required
+          class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-purple-500 focus:border-purple-500"
+        />
+      </div>
+      <div>
+        <label for="new-name" class="block text-gray-700">Name</label>
+        <input
+          id="new-name"
+          name="name"
+          type="text"
+          placeholder="Webhook Name"
+          class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-purple-500 focus:border-purple-500"
+        />
+      </div>
+      <div>
+        <label for="new-description" class="block text-gray-700">Description</label>
+        <input
+          id="new-description"
+          name="description"
+          type="text"
+          placeholder="Deskripsi singkat"
+          class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-purple-500 focus:border-purple-500"
+        />
+      </div>
+      <div>
+        <label for="new-signatureHeader" class="block text-gray-700">Signature Header</label>
+        <input
+          id="new-signatureHeader"
+          name="signatureHeader"
+          type="text"
+          placeholder="X-Signature"
+          class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-purple-500 focus:border-purple-500"
+        />
+      </div>
+      <div class="flex space-x-6">
+        <div class="flex items-center">
+          <input id="new-isPersonal" name="isPersonal" type="checkbox" value="true" class="h-5 w-5 text-indigo-600 rounded" />
+          <label for="new-isPersonal" class="ml-2 text-gray-700">Personal</label>
+        </div>
+        <div class="flex items-center">
+          <input id="new-isGroup" name="isGroup" type="checkbox" value="true" class="h-5 w-5 text-indigo-600 rounded" />
+          <label for="new-isGroup" class="ml-2 text-gray-700">Group</label>
+        </div>
+        <div class="flex items-center">
+          <input id="new-isTag" name="isTag" type="checkbox" value="true" class="h-5 w-5 text-indigo-600 rounded" />
+          <label for="new-isTag" class="ml-2 text-gray-700">Tag</label>
+        </div>
+      </div>
+      <button type="submit" class="mt-4 w-full py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium">Tambah Webhook</button>
+    </form>
+  </section>
 
-    socket.on('qr', ({ clientId, qr }) => {
-      const img = document.getElementById(`qr-${clientId}`);
-      const placeholder = document.getElementById(`qr-placeholder-${clientId}`);
-      img.src = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qr)}&size=300x300`;
-      placeholder.classList.add('hidden');
-      img.classList.remove('opacity-0');
-    });
+  <!-- Manage Webhooks -->
+  <section class="mt-10 bg-white border border-gray-200 rounded-xl p-6">
+    <h3 class="text-2xl font-semibold mb-4">Manage Webhooks</h3>
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">URL</th>
+            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Desc</th>
+            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Signature Header</th>
+            <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Personal</th>
+            <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Group</th>
+            <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Tag</th>
+            <th class="px-4 py-2"></th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          <% if (client.webhooks.length === 0) { %>
+            <tr>
+              <td colspan="9" class="px-4 py-4 text-center text-gray-500">Belum ada webhook</td>
+            </tr>
+          <% } else { %>
+            <% client.webhooks.forEach(wh => { %>
+              <tr>
+                <form class="ajax-form" action="/clients/webhook/<%= wh.id %>" method="POST">
+                  <input type="hidden" name="_method" value="PUT">
+                  <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-700"><%= wh.id %></td>
+                  <td class="px-4 py-2"><input name="url" type="url" value="<%= wh.url %>" required class="w-full border-gray-300 rounded-lg px-2 py-1" /></td>
+                  <td class="px-4 py-2"><input name="name" type="text" value="<%= wh.name %>" class="w-full border-gray-300 rounded-lg px-2 py-1" /></td>
+                  <td class="px-4 py-2"><input name="description" type="text" value="<%= wh.description %>" class="w-full border-gray-300 rounded-lg px-2 py-1" /></td>
+                  <td class="px-4 py-2"><input name="signatureHeader" type="text" value="<%= wh.signatureHeader %>" class="w-full border-gray-300 rounded-lg px-2 py-1" /></td>
+                  <td class="px-4 py-2 text-center"><input name="isPersonal" type="checkbox" value="true" <%= wh.isPersonal ? 'checked' : '' %> class="h-4 w-4 text-indigo-600" /></td>
+                  <td class="px-4 py-2 text-center"><input name="isGroup" type="checkbox" value="true" <%= wh.isGroup ? 'checked' : '' %> class="h-4 w-4 text-indigo-600" /></td>
+                  <td class="px-4 py-2 text-center"><input name="isTag" type="checkbox" value="true" <%= wh.isTag ? 'checked' : '' %> class="h-4 w-4 text-indigo-600" /></td>
+                  <td class="px-4 py-2 whitespace-nowrap">
+                    <button type="submit" class="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm">Save</button>
+                  </td>
+                </form>
+              </tr>
+            <% }) %>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </section>
 
-    const checkbox = document.getElementById('isReply');
-    const textarea = document.getElementById('replyTemplate');
-    if (checkbox && textarea) checkbox.addEventListener('change', () => textarea.disabled = !checkbox.checked);
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const socket = io();
 
-    const handleAjaxForm = (formId, method = 'POST', extraHandler = null) => {
-      const form = document.getElementById(formId);
-      if (!form) return;
-      form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const formData = new FormData(form);
-        let data = Object.fromEntries(formData.entries());
-
-        if (extraHandler) data = extraHandler(data, form);
-
-        const res = await fetch(form.action, {
-          method: method.toUpperCase(),
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-        });
-        alert(res.ok ? 'Berhasil!' : 'Gagal.');
+      socket.on('qr', ({ clientId, qr }) => {
+        const img = document.getElementById(`qr-${clientId}`);
+        const placeholder = document.getElementById(`qr-placeholder-${clientId}`);
+        img.src = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qr)}&size=300x300`;
+        placeholder.classList.add('hidden');
+        img.classList.remove('opacity-0');
       });
-    };
 
-    handleAjaxForm('edit-form', 'PUT');
-    handleAjaxForm('send-message-form');
-    handleAjaxForm('schedule-message-form');
-    handleAjaxForm('webhook-form', 'PATCH');
-    handleAjaxForm('auto-reply-form', 'PATCH', (data, form) => {
-      data.isReply = form.querySelector('#isReply').checked;
-      return data;
+      // Attach AJAX handler to all forms with class "ajax-form"
+      document.querySelectorAll('form.ajax-form').forEach(form => {
+        form.addEventListener('submit', async e => {
+          e.preventDefault();
+          const formData = new FormData(form);
+          const method = (formData.get('_method') || form.method).toUpperCase();
+          formData.delete('_method');
+          const payload = Object.fromEntries(formData.entries());
+
+          // Special handling for auto-reply checkboxes
+          if (form.id === 'auto-reply-form') {
+            ['Personal','Group','Tag'].forEach(type => {
+              payload[`isReply${type}`] = !!form.querySelector(`#isReply${type}`).checked;
+            });
+          }
+
+          try {
+            const res = await fetch(form.action, {
+              method,
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+            if (res.ok) {
+              alert('✅ Berhasil!');
+            } else {
+              console.error(await res.text());
+              alert('❌ Gagal!');
+            }
+          } catch (err) {
+            console.error(err);
+            alert('❌ Gagal!');
+          }
+        });
+      });
     });
-  });
-</script>
+  </script>
+</div>

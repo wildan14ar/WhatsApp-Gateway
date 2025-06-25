@@ -1,25 +1,31 @@
 // src/services/whatsappClients.ts
-import { Client, LocalAuth, MessageMedia } from 'whatsapp-web.js';
+import { Client, LocalAuth, MessageMedia, Message } from 'whatsapp-web.js';
 import { prisma } from '../lib/prisma';
 import { io } from '../app';
 import axios from 'axios';
 import path from 'path';
 
 const clients = new Map<number, Client>();
+const readyMap = new Map<number, Promise<void>>();
+const readyResolvers = new Map<number, () => void>();
 
-// Inisialisasi satu client berdasarkan config dari DB
 export const initWhatsAppClient = (cfg: {
   id: number;
   sessionFolder: string;
 }) => {
+  // Deferred promise untuk ready
+  const readyPromise = new Promise<void>((resolve) => {
+    readyResolvers.set(cfg.id, resolve);
+  });
+  readyMap.set(cfg.id, readyPromise);
+
   const dataPath = path.join(process.cwd(), 'sessions', cfg.sessionFolder);
   const client = new Client({
     authStrategy: new LocalAuth({ clientId: String(cfg.id), dataPath }),
     puppeteer: { headless: true },
   });
 
-  // QR, ready, disconnected, auth_failure, change_state tetap seperti sebelumnya...
-  client.on('qr', qr => {
+  client.on('qr', (qr) => {
     prisma.whatsAppClient.update({ where: { id: cfg.id }, data: { status: false } });
     io.emit('qr', { clientId: cfg.id, qr });
     io.emit('status', { clientId: cfg.id, status: false });
@@ -28,68 +34,132 @@ export const initWhatsAppClient = (cfg: {
   client.on('ready', async () => {
     await prisma.whatsAppClient.update({ where: { id: cfg.id }, data: { status: true } });
     io.emit('status', { clientId: cfg.id, status: true });
+    const resolve = readyResolvers.get(cfg.id);
+    if (resolve) {
+      resolve();
+      readyResolvers.delete(cfg.id);
+    }
   });
 
   client.on('disconnected', async () => {
     await prisma.whatsAppClient.update({ where: { id: cfg.id }, data: { status: false } });
     io.emit('status', { clientId: cfg.id, status: false });
+
     client.destroy();
     clients.delete(cfg.id);
+    readyMap.delete(cfg.id);
+    readyResolvers.delete(cfg.id);
+
     initWhatsAppClient(cfg);
   });
 
-  client.on('auth_failure', async msg => {
+  client.on('auth_failure', async (msg) => {
     await prisma.whatsAppClient.update({ where: { id: cfg.id }, data: { status: false } });
     io.emit('status', { clientId: cfg.id, status: false });
     console.warn(`Auth failure for client ${cfg.id}:`, msg);
   });
 
-  client.on('change_state', async state => {
+  client.on('change_state', async (state) => {
     const isOnline = state === 'CONNECTED';
     await prisma.whatsAppClient.update({ where: { id: cfg.id }, data: { status: isOnline } });
     io.emit('status', { clientId: cfg.id, status: isOnline });
   });
 
-  // === SINGLE 'message' LISTENER untuk auto-reply & webhook ===
-  client.on('message', async msg => {
+  client.on('message', async (msg) => {
     if (msg.fromMe) return;
 
-    // Ambil config terbaru dari DB
+    // Tentukan tipe chat
+    const isGroup = msg.from.endsWith('@g.us');
+    const mentionsMe = msg.mentionedIds?.includes(client.info?.me._serialized as any) ?? false;
+    const isPersonal = !isGroup;
+    const isTagGroup = isGroup && mentionsMe;
+
+    // Ambil config dan webhook list
     const cfgDB = await prisma.whatsAppClient.findUnique({
       where: { id: cfg.id },
-      select: { isReply: true, replyTemplate: true, webhookUrl: true },
+      select: {
+        isReplyPersonal: true,
+        isReplyGroup: true,
+        isReplyTag: true,
+        replyTemplatePersonal: true,
+        replyTemplateGroup: true,
+        replyTemplateTag: true,
+      },
     });
+    const webhooks = await prisma.webhook.findMany({ where: { clientId: cfg.id } });
     if (!cfgDB) return;
 
-    // Auto-reply
-    if (cfgDB.isReply && cfgDB.replyTemplate) {
-      try {
-        await msg.reply(cfgDB.replyTemplate);
-        await prisma.message.create({
-          data: {
-            clientId: cfg.id,
-            to: msg.from,
-            body: cfgDB.replyTemplate,
-            direction: 'OUT',
-            status: 'SENT',
-          },
-        });
-      } catch (e) {
-        console.error('Auto-reply failed', e);
+    const shouldReply =
+      (isPersonal && cfgDB.isReplyPersonal) ||
+      (isGroup && cfgDB.isReplyGroup) ||
+      (isTagGroup && cfgDB.isReplyTag);
+
+    if (shouldReply) {
+      let template = '';
+      if (isPersonal) template = cfgDB.replyTemplatePersonal ?? 'Terima kasih telah menghubungi kami!';
+      else if (isTagGroup) template = cfgDB.replyTemplateTag ?? 'Terima kasih telah menghubungi kami!';
+      else if (isGroup) template = cfgDB.replyTemplateGroup ?? 'Terima kasih telah menghubungi grup kami!';
+
+      if (template) {
+        try {
+          await msg.reply(template);
+          await prisma.message.create({
+            data: {
+              clientId: cfg.id,
+              to: msg.from,
+              body: template,
+              direction: 'OUT',
+              status: 'SENT',
+            },
+          });
+        } catch (e) {
+          console.error('Auto-reply gagal:', e);
+        }
       }
     }
 
-    // Webhook forwarding
-    if (cfgDB.webhookUrl) {
+    // Kirim data ke webhooks (Incoming)
+    for (const hook of webhooks) {
       try {
-        await axios.post(cfgDB.webhookUrl, {
+        await axios.post(hook.url, {
           clientId: cfg.id,
+          direction: 'IN',
           from: msg.from,
           body: msg.body,
           timestamp: msg.timestamp,
+          isGroup,
+          isPersonal,
+          isTagGroup,
+        }, {
+          headers: { [hook.signatureHeader]: hook.secretKey }
         });
       } catch (e) {
-        console.error('Webhook delivery failed', e);
+        console.error(`Webhook IN (${hook.id}) gagal:`, e);
+      }
+    }
+  });
+
+  client.on('message_create', async (msg) => {
+    if (!msg.fromMe) return;
+    const isGroup = msg.to?.endsWith('@g.us') ?? false;
+    const to = msg.to || '';
+
+    const webhooks = await prisma.webhook.findMany({ where: { clientId: cfg.id } });
+
+    for (const hook of webhooks) {
+      try {
+        await axios.post(hook.url, {
+          clientId: cfg.id,
+          direction: 'OUT',
+          to,
+          body: msg.body,
+          timestamp: msg.timestamp,
+          isGroup,
+        }, {
+          headers: { [hook.signatureHeader]: hook.secretKey }
+        });
+      } catch (e) {
+        console.error(`Webhook OUT (${hook.id}) gagal:`, e);
       }
     }
   });
@@ -98,22 +168,17 @@ export const initWhatsAppClient = (cfg: {
   clients.set(cfg.id, client);
 };
 
-// Inisialisasi semua client pada startup
 export const initWhatsAppClients = async () => {
   const configs = await prisma.whatsAppClient.findMany();
   configs.forEach(initWhatsAppClient);
 };
 
-// Kirim pesan media / teks
 function normalizeToChatId(raw: string): string {
-  // 1) Hilangkan semua non-digit
   let num = raw.replace(/\D+/g, '');
-  // 2) Pastikan kode internasional (default: Indonesia 62)
   if (!num.startsWith('62')) {
     num = num.replace(/^0+/, '');
     num = '62' + num;
   }
-  // 3) Tambah suffix @c.us
   return `${num}@c.us`;
 }
 
@@ -124,17 +189,14 @@ export const sendWhatsAppMessage = async (
   media?: { filename: string; mimetype: string; data: Buffer }
 ) => {
   const client = clients.get(clientId);
-  if (!client) {
-    throw new Error(`Client ${clientId} belum diinisialisasi`);
-  }
+  if (!client) throw new Error(`Client ${clientId} belum diinisialisasi`);
 
-  chatId = normalizeToChatId(chatId)
+  const readyPromise = readyMap.get(clientId);
+  if (readyPromise) await readyPromise;
+
+  chatId = normalizeToChatId(chatId);
   text = text || 'swasasalam';
-
   console.log(`Sending message from client ${clientId} to ${chatId}:`, text);
-
-  // Jika perlu tunggu client ready
-  // await readyMap.get(clientId);
 
   if (media) {
     const mediaMessage = new MessageMedia(

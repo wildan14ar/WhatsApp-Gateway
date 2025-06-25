@@ -30,7 +30,7 @@ export const getClient = async (
 ): Promise<void> => {
   try {
     const id = Number(req.params.id);
-    const client = await prisma.whatsAppClient.findUnique({ where: { id } });
+    const client = await prisma.whatsAppClient.findUnique({ where: { id }, include: { messages: true, webhooks: true } });
     if (!client) {
       res.status(404).send('Client not found');
       return;
@@ -178,12 +178,30 @@ export async function scheduleMessage(req: Request, res: Response) {
 
 export async function updateAutoReply(req: Request, res: Response) {
   const clientId = +req.params.id;
-  const { isReply, replyTemplate } = req.body;
+  const {
+    isReplyPersonal,
+    isReplyGroup,
+    isReplyTag,
+    replyTemplatePersonal,
+    replyTemplateGroup,
+    replyTemplateTag,
+  } = req.body;
+
   try {
     const updated = await prisma.whatsAppClient.update({
       where: { id: clientId },
-      data: { isReply, replyTemplate: isReply ? replyTemplate : null },
+      data: {
+        // update flags
+        isReplyPersonal: isReplyPersonal ?? false,
+        isReplyGroup: isReplyGroup ?? false,
+        isReplyTag: isReplyTag ?? false,
+        // hanya simpan template jika flag true
+        replyTemplatePersonal: isReplyPersonal ? replyTemplatePersonal : null,
+        replyTemplateGroup: isReplyGroup ? replyTemplateGroup : null,
+        replyTemplateTag: isReplyTag ? replyTemplateTag : null,
+      },
     });
+
     res.json({ success: true, client: updated });
   } catch (err: any) {
     console.error(err);
@@ -191,18 +209,60 @@ export async function updateAutoReply(req: Request, res: Response) {
   }
 }
 
-export async function updateWebhook(req: Request, res: Response) {
-  const clientId = +req.params.id;
-  const { webhookUrl } = req.body;
+function parseBool(val: any): boolean | undefined {
+  if (val === undefined) return undefined;
+  // val bisa "true" atau "false", atau boolean sebenarnya
+  return val === 'true' || val === true;
+}
+
+export async function createWebhook(req: Request, res: Response) {
+  const clientId = Number(req.params.id);
+  const { url, name, description, signatureHeader, isPersonal, isGroup, isTag } = req.body;
+  const secretKey = randomUUID(); // Pastikan secretKey dikirim dari client
 
   try {
-    const updated = await prisma.whatsAppClient.update({
-      where: { id: clientId },
-      data: { webhookUrl },
+    const newWebhook = await prisma.webhook.create({
+      data: {
+        url,
+        name,
+        description,
+        signatureHeader,
+        isPersonal: isPersonal ?? false, // Default to false if not provided
+        isGroup: isGroup ?? false, // Default to false if not provided
+        isTag: isTag ?? false, // Default to false if not provided
+        clientId, // Hubungkan dengan WhatsAppClient
+        secretKey // Pastikan secretKey dikirim dari client
+      },
     });
-    res.json({ success: true, webhookUrl: updated.webhookUrl });
+    res.status(201).json({ success: true, webhook: newWebhook });
   } catch (err: any) {
     console.error(err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+
+export async function updateWebhook(req: Request, res: Response) {
+  // params.id di sini adalah ID dari record Webhook, bukan WhatsAppClient
+  const webhookId = Number(req.params.webhookId)
+  const { url, name, description, signatureHeader, isPersonal, isGroup, isTag } = req.body
+
+  try {
+    const updated = await prisma.webhook.update({
+      where: { id: webhookId },
+      data: {
+        url,
+        name,
+        description,
+        signatureHeader,
+        isPersonal: parseBool(isPersonal) ?? false, // Default to false if not provided
+        isGroup: parseBool(isGroup) ?? false, // Default to false if not provided
+        isTag: parseBool(isTag) ?? false, // Default to false if not provided
+      },
+    })
+    res.json({ success: true, webhook: updated })
+  } catch (err: any) {
+    console.error(err)
+    res.status(500).json({ success: false, error: err.message })
   }
 }

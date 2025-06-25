@@ -23,16 +23,22 @@ enum status {
 }
 
 model WhatsAppClient {
-  id            Int       @id @default(autoincrement())
+  id            Int     @id @default(autoincrement())
   name          String
   description   String?
   sessionFolder String
   secretKey     String // kunci rahasia untuk enkripsi pesan
-  status        Boolean   @default(false)
-  replyTemplate String? // nama template balasan yang digunakan
-  isReply       Boolean   @default(false)
-  webhookUrl    String? // URL webhook untuk menerima notifikasi
-  messages      Message[]
+  status        Boolean @default(false)
+
+  isReplyPersonal       Boolean @default(false)
+  isReplyGroup          Boolean @default(false)
+  isReplyTag            Boolean @default(false)
+  replyTemplatePersonal String? // template balasan untuk personal chat
+  replyTemplateGroup    String? // template balasan untuk grup (tanpa tag)
+  replyTemplateTag      String? // template balasan ketika bot ditag di grup
+
+  messages Message[]
+  webhooks Webhook[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -48,6 +54,24 @@ model Message {
   direction   String // "IN" / "OUT"
   status      status    @default(SENT) // status pesan
   scheduledAt DateTime? // untuk pesan terjadwal
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Webhook {
+  id       Int            @id @default(autoincrement())
+  clientId Int
+  client   WhatsAppClient @relation(fields: [clientId], references: [id])
+
+  name            String // Nama webhook untuk identifikasi
+  description     String? // Deskripsi webhook
+  url             String // URL endpoint yang menerima event ini
+  secretKey       String // Kunci rahasia untuk verifikasi event
+  signatureHeader String  @default("X-Signature")
+  isPersonal      Boolean @default(false) // Apakah webhook ini untuk pesan personal
+  isGroup         Boolean @default(false) // Apakah webhook ini untuk pesan grup
+  isTag           Boolean @default(false) // Apakah webhook ini untuk pesan yang ditag
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
