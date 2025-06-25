@@ -10,6 +10,7 @@ import {
   updateAutoReply,
   createWebhook,
   updateWebhook,
+  deleteWebhook,
 } from '../controllers/clientController';
 import { create } from 'axios';
 
@@ -26,5 +27,6 @@ router.post('/:id/messages/schedule', scheduleMessage);
 router.patch('/:id/auto-reply', updateAutoReply);
 router.post('/:id/webhook', createWebhook); // Assuming createWebhook is a function to create a new webhook
 router.put('/webhook/:webhookId', updateWebhook);
+router.delete('/webhook/:webhookId', deleteWebhook);
 
 export default router;

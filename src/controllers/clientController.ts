@@ -241,7 +241,6 @@ export async function createWebhook(req: Request, res: Response) {
   }
 }
 
-
 export async function updateWebhook(req: Request, res: Response) {
   // params.id di sini adalah ID dari record Webhook, bukan WhatsAppClient
   const webhookId = Number(req.params.webhookId)
@@ -261,6 +260,18 @@ export async function updateWebhook(req: Request, res: Response) {
       },
     })
     res.json({ success: true, webhook: updated })
+  } catch (err: any) {
+    console.error(err)
+    res.status(500).json({ success: false, error: err.message })
+  }
+}
+
+export async function deleteWebhook(req: Request, res: Response) {
+  const webhookId = Number(req.params.webhookId)
+
+  try {
+    await prisma.webhook.delete({ where: { id: webhookId } })
+    res.sendStatus(204)
   } catch (err: any) {
     console.error(err)
     res.status(500).json({ success: false, error: err.message })
