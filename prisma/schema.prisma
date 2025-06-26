@@ -14,11 +14,8 @@ datasource db {
 }
 
 enum status {
-  NOW
-  SENT
   SCHEDULED
-  DELIVERED
-  READ
+  SENT
   FAILED
 }
 
@@ -27,21 +24,12 @@ model WhatsAppClient {
   name          String
   description   String?
   sessionFolder String
-  secretKey     String // kunci rahasia untuk enkripsi pesan
   status        Boolean @default(false)
-  contacts      String? // apakah bot ini bisa mengelola kontak, jika tidak diisi berarti semua kontak
-  groups        String? // apakah bot ini bisa mengelola grup, jika tidak diisi berarti semua grup
-
-  selectContacts        String? // apakah bot ini bisa memilih kontak, jika tidak diisi berarti semua kontak
-  selectGroups          String? // apakah bot ini bisa memilih grup, jika tidak diisi berarti semua grup
-  isReplyPersonal       Boolean @default(false)
-  isReplyGroup          Boolean @default(false)
-  isReplyTag            Boolean @default(false)
-  replyTemplatePersonal String? // template balasan untuk personal chat
-  replyTemplateGroup    String? // template balasan untuk grup (tanpa tag)
-  replyTemplateTag      String? // template balasan ketika bot ditag di grup
+  contacts      Json? // apakah bot ini bisa mengelola kontak, jika tidak diisi berarti semua kontak
+  groups        Json? // apakah bot ini bisa mengelola grup, jika tidak diisi berarti semua grup
 
   messages Message[]
+  replys   Reply[]
   webhooks Webhook[]
 
   createdAt DateTime @default(now())
@@ -53,11 +41,27 @@ model Message {
   clientId Int
   client   WhatsAppClient @relation(fields: [clientId], references: [id])
 
-  to          String
+  to          Json
   body        String
   direction   String // "IN" / "OUT"
   status      status    @default(SENT) // status pesan
   scheduledAt DateTime? // untuk pesan terjadwal
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Reply {
+  id       Int            @id @default(autoincrement())
+  clientId Int
+  client   WhatsAppClient @relation(fields: [clientId], references: [id])
+
+  isReplyPersonal       Boolean @default(false)
+  isReplyGroup          Boolean @default(false)
+  isReplyTag            Boolean @default(false)
+  replyTemplatePersonal String? // template balasan untuk personal chat
+  replyTemplateGroup    String? // template balasan untuk grup (tanpa tag)
+  replyTemplateTag      String? // template balasan ketika bot ditag di grup
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -69,13 +73,17 @@ model Webhook {
   client   WhatsAppClient @relation(fields: [clientId], references: [id])
 
   name            String // Nama webhook untuk identifikasi
-  description     String? // Deskripsi webhook
-  url             String // URL endpoint yang menerima event ini
+  description     String? // Deskripsi weubhook
+  urlWebhook      String // URL endpoint yang menerima event ini
   secretKey       String // Kunci rahasia untuk verifikasi event
   signatureHeader String  @default("X-Signature")
-  isPersonal      Boolean @default(false) // Apakah webhook ini untuk pesan personal
-  isGroup         Boolean @default(false) // Apakah webhook ini untuk pesan grup
-  isTag           Boolean @default(false) // Apakah webhook ini untuk pesan yang ditag
+  outputFormat    String  @default("json") // Format output yang diterima, bisa "json" atau "xml"
+
+  hookContacts   Json? // apakah bot ini bisa memilih kontak, jika tidak diisi berarti semua kontak
+  hookGroups     Json? // apakah bot ini bisa memilih grup, jika tidak diisi berarti semua grup
+  isHookPersonal Boolean @default(false) // Apakah webhook ini untuk pesan personal
+  isHookGroup    Boolean @default(false) // Apakah webhook ini untuk pesan grup
+  isHookTag      Boolean @default(false) // Apakah webhook ini untuk pesan yang ditag
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

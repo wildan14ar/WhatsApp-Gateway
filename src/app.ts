@@ -4,7 +4,6 @@ import { Server as IOServer } from 'socket.io';
 import expressLayouts from 'express-ejs-layouts';
 import path from 'path';
 import { json, urlencoded } from 'body-parser';
-import methodOverride from 'method-override';
 import clientRoutes from './routes/clientRoutes';
 import { initWhatsAppClients } from './services/whatsappClients';
 import { initScheduler } from './services/scheduler';
