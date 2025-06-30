@@ -106,10 +106,11 @@ model Webhook {
   name            String // Nama webhook untuk identifikasi
   description     String? // Deskripsi webhook
   url             String // URL endpoint yang menerima event ini
-  secretKey       String // Kunci rahasia untuk verifikasi event
   signatureHeader String  @default("X-Signature")
+  secretKey       String // Kunci rahasia untuk verifikasi event
+  outputFormat    String  @default("$body.output") // Format output yang diterima (json/xml)
 
-  isPersonal Boolean @default(false) // Apakah webhook ini untuk pesan personalAdd commentMore actions
+  isPersonal Boolean @default(false) // Apakah webhook ini untuk pesan personal
   isGroup    Boolean @default(false) // Apakah webhook ini untuk pesan grup
   isTag      Boolean @default(false) // Apakah webhook ini untuk pesan yang ditag
 

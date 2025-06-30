@@ -83,6 +83,114 @@ export const syncContacts = async (client: Client, clientId: number) => {
   }
 };
 
+export const handleAutoReply = async (client: Client, msg: Message, clientId: number) => {
+  if (msg.fromMe) return;
+
+  const isGroup = msg.from.endsWith('@g.us');
+  const mentionsMe = msg.mentionedIds?.includes(client.info?.me._serialized as any) ?? false;
+  const isTagGroup = isGroup && mentionsMe;
+  const isPersonal = !isGroup;
+
+  const cfgDB = await prisma.autoReply.findUnique({
+    where: { clientId },
+    select: {
+      isReplyPersonal: true,
+      isReplyGroup: true,
+      isReplyTag: true,
+      replyTemplatePersonal: true,
+      replyTemplateGroup: true,
+      replyTemplateTag: true,
+    },
+  });
+  if (!cfgDB) return;
+
+  if (
+    (isPersonal && cfgDB.isReplyPersonal) ||
+    (isGroup && cfgDB.isReplyGroup) ||
+    (isTagGroup && cfgDB.isReplyTag)
+  ) {
+    const tpl = isPersonal
+      ? cfgDB.replyTemplatePersonal
+      : isTagGroup
+        ? cfgDB.replyTemplateTag
+        : cfgDB.replyTemplateGroup;
+    const text = tpl?.trim() || (isPersonal
+      ? 'Terima kasih telah menghubungi kami!'
+      : isTagGroup
+        ? 'Terima kasih telah men-tag kami!'
+        : 'Terima kasih kepada grup!'
+    );
+
+    try {
+      await msg.reply(text);
+      await prisma.message.create({
+        data: {
+          clientId,
+          to: msg.from,
+          body: text,
+          direction: 'OUT',
+          status: 'SENT',
+        },
+      });
+    } catch (e) {
+      console.error('Auto-reply gagal:', e);
+    }
+  }
+};
+
+export const dispatchIncomingWebhooks = async (client: Client, msg: Message, clientId: number) => {
+  const isGroup = msg.from.endsWith('@g.us');
+  const mentionsMe = msg.mentionedIds?.includes(client.info?.me._serialized as any) ?? false;
+  const isTagGroup = isGroup && mentionsMe;
+  const isPersonal = !isGroup;
+
+  const allHooks = await prisma.webhook.findMany({ where: { clientId } });
+  const inHooks = allHooks.filter(h =>
+    (isPersonal && h.isPersonal) ||
+    (isGroup && h.isGroup) ||
+    (isTagGroup && h.isTag)
+  );
+
+  for (const hook of inHooks) {
+    const webhookUrl = normalizeUrl(hook.url);
+    console.log(`Dispatching IN webhook (${hook.id}) to ${webhookUrl}`);
+    try {
+      const response = await axios.post(
+        webhookUrl,
+        {
+          clientId,
+          direction: 'IN',
+          from: msg.from,
+          msg: msg.body,
+          timestamp: msg.timestamp,
+          isGroup,
+          isPersonal,
+          isTagGroup,
+        },
+        { headers: { [hook.signatureHeader]: hook.secretKey } }
+      );
+
+      console.log(`Webhook IN (${hook.id}) response:`, response);
+      const data = response.data as { output?: string };
+      const replyText = typeof data.output === 'string'
+        ? data.output
+        : JSON.stringify(response.data);
+      await msg.reply(replyText);
+      await prisma.message.create({
+        data: {
+          clientId,
+          to: msg.from,
+          body: replyText,
+          direction: 'OUT',
+          status: 'SENT',
+        },
+      });
+    } catch (err) {
+      console.error(`Webhook IN (${hook.id}) failed:`, err);
+    }
+  }
+};
+
 export const initWhatsAppClient = (cfg: { id: number; sessionFolder: string }) => {
   const readyPromise = new Promise<void>(res => readyResolvers.set(cfg.id, res));
   readyMap.set(cfg.id, readyPromise);
@@ -166,60 +274,6 @@ export const initWhatsAppClient = (cfg: { id: number; sessionFolder: string }) =
   client.on('message', async (msg: Message) => {
     if (msg.fromMe) return;
 
-    // detect chat type
-    const isGroup = msg.from.endsWith('@g.us');
-    const mentionsMe = msg.mentionedIds?.includes(client.info?.me._serialized as any) ?? false;
-    const isTagGroup = isGroup && mentionsMe;
-    const isPersonal = !isGroup;
-
-    // fetch reply-config
-    const cfgDB = await prisma.autoReply.findUnique({
-      where: { clientId: cfg.id },
-      select: {
-        isReplyPersonal: true,
-        isReplyGroup: true,
-        isReplyTag: true,
-        replyTemplatePersonal: true,
-        replyTemplateGroup: true,
-        replyTemplateTag: true,
-      },
-    });
-    if (!cfgDB) return;
-
-    // ---- AUTO-REPLY ----
-    if (
-      (isPersonal && cfgDB.isReplyPersonal) ||
-      (isGroup && cfgDB.isReplyGroup) ||
-      (isTagGroup && cfgDB.isReplyTag)
-    ) {
-      const tpl = isPersonal
-        ? cfgDB.replyTemplatePersonal
-        : isTagGroup
-          ? cfgDB.replyTemplateTag
-          : cfgDB.replyTemplateGroup;
-      const text = tpl?.trim() || (isPersonal
-        ? 'Terima kasih telah menghubungi kami!'
-        : isTagGroup
-          ? 'Terima kasih telah men-tag kami!'
-          : 'Terima kasih kepada grup!'
-      );
-      try {
-        await msg.reply(text);
-        await prisma.message.create({
-          data: {
-            clientId: cfg.id,
-            to: msg.from,
-            body: text,
-            direction: 'OUT',
-            status: 'SENT',
-          },
-        });
-      } catch (e) {
-        console.error('Auto-reply gagal:', e);
-      }
-    }
-
-    // ---- SIMPAN PESAN MASUK ----
     await prisma.message.create({
       data: {
         clientId: cfg.id,
@@ -230,58 +284,14 @@ export const initWhatsAppClient = (cfg: { id: number; sessionFolder: string }) =
       },
     });
 
-    // ---- DISPATCH IN-WEBHOOK & RETURN RESPONSE ----
-    const allHooks = await prisma.webhook.findMany({ where: { clientId: cfg.id } });
-    const inHooks = allHooks.filter(h =>
-      (isPersonal && h.isPersonal) ||
-      (isGroup && h.isGroup) ||
-      (isTagGroup && h.isTag)
-    );
-    for (const hook of inHooks) {
-      const webhookUrl = normalizeUrl(hook.url);
-      console.log(`Dispatching IN webhook (${hook.id}) to ${webhookUrl}`);
-      try {
-        const response = await axios.post(
-          webhookUrl,
-          {
-            clientId: cfg.id,
-            direction: 'IN',
-            from: msg.from,
-            msg: msg.body,
-            timestamp: msg.timestamp,
-            isGroup,
-            isPersonal,
-            isTagGroup,
-          },
-          { headers: { [hook.signatureHeader]: hook.secretKey } }
-        );
-        console.log(`Webhook IN (${hook.id}) response:`, response);
-        // Reply back to sender with webhook response
-        const data = response.data as { output?: string };
-        const replyText = typeof data.output === 'string'
-          ? data.output
-          : JSON.stringify(response.data);
-        await msg.reply(replyText);
-        await prisma.message.create({
-          data: {
-            clientId: cfg.id,
-            to: msg.from,
-            body: replyText,
-            direction: 'OUT',
-            status: 'SENT',
-          },
-        });
-      } catch (err) {
-        console.error(`Webhook IN (${hook.id}) failed:`, err);
-      }
-    }
+    await handleAutoReply(client, msg, cfg.id);
+    await dispatchIncomingWebhooks(client, msg, cfg.id);
   });
 
   // ... outgoing handlers unchanged ...
   client.initialize();
   clients.set(cfg.id, client);
 };
-
 
 export const initWhatsAppClients = async () => {
   const configs = await prisma.whatsAppClient.findMany();

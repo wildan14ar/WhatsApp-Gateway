@@ -23,40 +23,66 @@
     </aside>
 
     <!-- Edit Form -->
-    <section class="lg:col-span-2 bg-white border border-gray-200 rounded-xl p-8">
+    <section class="lg:col-span-2 bg-white border border-gray-200 rounded-xl p-8 shadow-sm">
       <form id="edit-form" class="ajax-form space-y-6" action="/clients/<%= client.id %>" method="POST">
-        <input type="hidden" name="_method" value="PUT">
-        <div class="space-y-4">
+        <input type="hidden" name="_method" value="PUT" />
+
+        <div class="space-y-6">
+          <!-- Client Name -->
           <div>
-            <label for="name" class="block text-gray-700 font-medium">Client Name</label>
+            <label for="name" class="block text-sm font-semibold text-gray-700 mb-1">Client Name</label>
             <input
               id="name"
               name="name"
               type="text"
               value="<%= client.name %>"
               required
-              class="mt-1 w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-indigo-500 focus:border-indigo-500"
+              class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-indigo-500 focus:border-indigo-500"
             />
           </div>
+
+          <!-- Description -->
           <div>
-            <label for="description" class="block text-gray-700 font-medium">Description</label>
+            <label for="description" class="block text-sm font-semibold text-gray-700 mb-1">Description</label>
             <input
               id="description"
               name="description"
               type="text"
               value="<%= client.description || '' %>"
-              placeholder="description"
-              class="mt-1 w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-indigo-500 focus:border-indigo-500"
+              placeholder="Leave blank to keep current description"
+              class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-indigo-500 focus:border-indigo-500"
             />
             <p class="text-xs text-gray-500 mt-1">Leave blank to keep current description.</p>
           </div>
+
+          <!-- Secret Key -->
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">Secret Key</label>
+            <div class="flex items-center space-x-2 bg-gray-100 border border-gray-200 rounded-lg px-4 py-2">
+              <span class="text-sm text-gray-800 break-all">Signature:</span>
+              <button
+                type="button"
+                class="text-indigo-600 text-sm rounded focus:outline-none hover:bg-gray-200 px-2 py-1"
+                onclick="copyToClipboard('<%= client.secretKey %>')"
+              >
+                Copy
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div class="flex justify-end space-x-4">
-          <button type="submit" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium">Update</button>
+        <!-- Submit Button -->
+        <div class="flex justify-end pt-4">
+          <button
+            type="submit"
+            class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg font-semibold transition"
+          >
+            Update
+          </button>
         </div>
       </form>
     </section>
+
   </section>
 
   <!-- Contacts & Messages Section -->
@@ -457,6 +483,26 @@
   </section>
 
   <script>
+    function copyToClipboard(text) {
+      // Gunakan Clipboard API jika tersedia
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(() => {
+          alert('Copied to clipboard!');
+        }).catch(err => {
+          console.error('Could not copy text: ', err);
+        });
+      } else {
+        // Fallback untuk browser lama
+        const tempInput = document.createElement("input");
+        tempInput.value = text;
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        document.execCommand("copy");
+        document.body.removeChild(tempInput);
+        alert('Copied to clipboard!');
+      }
+    }
+
     // Initialize page data from server-side variables
     document.addEventListener('DOMContentLoaded', () => {
       const pageEl = document.getElementById('page-data');
