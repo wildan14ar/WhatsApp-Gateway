@@ -30,12 +30,85 @@ export const getClient = async (
 ): Promise<void> => {
   try {
     const id = Number(req.params.id);
-    const client = await prisma.whatsAppClient.findUnique({ where: { id }, include: { messages: true, webhooks: true } });
+    const contactPage = Number(req.query.contactPage) || 1;
+    const messagePage = Number(req.query.messagePage) || 1;
+    const contactPageSize = 10;
+    const messagePageSize = 10;
+
+    const search = (req.query.search as string)?.trim() || '';
+    const type = (req.query.type as string)?.toUpperCase() || ''; // 'PERSONAL', 'GROUP', 'COMMUNITY', or ''
+
+    // Ambil client info tanpa kontak dan pesan dulu
+    const client = await prisma.whatsAppClient.findUnique({
+      where: { id },
+      include: {
+        autoReplies: true,
+        webhooks: true,
+      },
+    });
+
     if (!client) {
       res.status(404).send('Client not found');
       return;
     }
-    res.render('client', { client });
+
+    // const decryptedSecretKey = await decryptSecretKey(client.secretKey);
+    // console.log('Decrypted Secret Key:', decryptedSecretKey);
+
+    // === Filter Kontak ===
+    const contactAnd: any[] = [];
+    if (search) {
+      contactAnd.push({
+        OR: [
+          { name: { contains: search.toLowerCase() } },
+          { phone: { contains: search.toLowerCase() } },
+        ],
+      });
+    }
+    if (['PERSONAL', 'GROUP', 'COMMUNITY'].includes(type)) {
+      contactAnd.push({ type: type as any });
+    }
+    const contactWhere: any = {
+      clientId: id,
+      ...(contactAnd.length > 0 ? { AND: contactAnd } : {}),
+    };
+
+    const [contacts, contactCount] = await Promise.all([
+      prisma.contact.findMany({
+        where: contactWhere,
+        skip: (contactPage - 1) * contactPageSize,
+        take: contactPageSize,
+        orderBy: { name: 'asc' },
+      }),
+      prisma.contact.count({ where: contactWhere }),
+    ]);
+
+    // === Pesan ===
+    const [messages, messageCount] = await Promise.all([
+      prisma.message.findMany({
+        where: { clientId: id },
+        skip: (messagePage - 1) * messagePageSize,
+        take: messagePageSize,
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.message.count({ where: { clientId: id } }),
+    ]);
+
+    // === Render ===
+    res.render('client', {
+      client: {
+        ...client,
+        // secretKey: decryptedSecretKey, // tambahkan secretKey yang sudah didekripsi
+      },
+      contacts,
+      contactPage,
+      contactTotalPages: Math.ceil(contactCount / contactPageSize),
+      messages,
+      messagePage,
+      messageTotalPages: Math.ceil(messageCount / messagePageSize),
+      search,
+      type, // ← kirim type untuk filter tab di frontend
+    });
   } catch (err) {
     next(err);
   }
@@ -43,12 +116,12 @@ export const getClient = async (
 
 export const createClient = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { name, secretKey } = req.body;
-    if (!name || !secretKey) {
-      res.status(400).send('Name and secret key are required');
+    const { name, description } = req.body;
+    if (!name || !description) {
+      res.status(400).send('Name and description are required');
       return;
     }
-
+    const secretKey = randomUUID(); // generate secret key
     const hashedSecretKey = await hashSecretKey(secretKey);
     const folderName = randomUUID();
     const sessionPath = path.join(process.cwd(), 'sessions', folderName);
@@ -58,9 +131,20 @@ export const createClient = async (req: Request, res: Response, next: NextFuncti
     const newClient = await prisma.whatsAppClient.create({
       data: {
         name,
+        description,
         secretKey: hashedSecretKey,
-        status: false,
+        status: 'SCANNING', // status awal adalah SCANNING
         sessionFolder: folderName,
+        autoReplies: {
+          create: {
+            isReplyPersonal: false,
+            isReplyGroup: false,
+            isReplyTag: false,
+            replyTemplatePersonal: null,
+            replyTemplateGroup: null,
+            replyTemplateTag: null,
+          },
+        },
       },
     });
 
@@ -76,10 +160,10 @@ export const createClient = async (req: Request, res: Response, next: NextFuncti
 export const updateClient = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const id = Number(req.params.id);
-    const { name, secretKey } = req.body;
+    const { name, description } = req.body;
 
-    if (!name || !secretKey) {
-      res.status(400).send('Name and secret key are required');
+    if (!name || !description) {
+      res.status(400).send('Name and description are required');
       return;
     }
 
@@ -89,12 +173,10 @@ export const updateClient = async (req: Request, res: Response, next: NextFuncti
       return;
     }
 
-    const hashedSecretKey = await hashSecretKey(secretKey);
-
     // update DB
     await prisma.whatsAppClient.update({
       where: { id },
-      data: { name, secretKey: hashedSecretKey },
+      data: { name, description },
     });
 
     // re-initialize WhatsApp client
@@ -115,14 +197,12 @@ export const deleteClient = async (req: Request, res: Response, next: NextFuncti
       return;
     }
 
-    // hapus record DB
-    await prisma.whatsAppClient.delete({ where: { id } });
-
-    // hapus session folder
+    // hapus session folder & client dari DB
     const sessionPath = path.join(process.cwd(), 'sessions', client.sessionFolder);
     if (fs.existsSync(sessionPath)) {
       fs.rmSync(sessionPath, { recursive: true, force: true });
     }
+    await prisma.whatsAppClient.delete({ where: { id } });
 
     if (req.xhr) {
       res.sendStatus(204);
@@ -188,14 +268,13 @@ export async function updateAutoReply(req: Request, res: Response) {
   } = req.body;
 
   try {
-    const updated = await prisma.whatsAppClient.update({
-      where: { id: clientId },
+    const updated = await prisma.autoReply.update({
+      where: { clientId }, // clientId must be unique in your Prisma schema
       data: {
         // update flags
         isReplyPersonal: isReplyPersonal ?? false,
         isReplyGroup: isReplyGroup ?? false,
         isReplyTag: isReplyTag ?? false,
-        // hanya simpan template jika flag true
         replyTemplatePersonal: isReplyPersonal ? replyTemplatePersonal : null,
         replyTemplateGroup: isReplyGroup ? replyTemplateGroup : null,
         replyTemplateTag: isReplyTag ? replyTemplateTag : null,

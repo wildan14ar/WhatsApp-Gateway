@@ -13,34 +13,55 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum status {
-  NOW
-  SENT
+enum ClientStatus {
+  DISCONNECTED
+  CONNECTED
+  SCANNING
+}
+
+enum MessageStatus {
   SCHEDULED
-  DELIVERED
-  READ
+  SENT
   FAILED
+}
+
+enum ContactType {
+  PERSONAL
+  GROUP
+  COMMUNITY
 }
 
 model WhatsAppClient {
   id            Int     @id @default(autoincrement())
   name          String
   description   String?
-  secretKey     String // kunci rahasia untuk otentikasi webhook
+  secretKey     String
   sessionFolder String
-  status        Boolean @default(false)
+  status        ClientStatus @default(SCANNING)
+  waName        String? // nama WhatsApp client (biasanya nama pengguna)
+  phoneNumber   String? // nomor telepon WhatsApp yang digunakan
+  waId          String? // ID WhatsApp client (opsional, bisa diisi setelah login)
+  profilePicUrl String? // URL foto profil WhatsApp client
 
-  selectContacts        String? // apakah bot ini bisa memilih kontak, jika tidak diisi berarti semua kontak
-  selectGroups          String? // apakah bot ini bisa memilih grup, jika tidak diisi berarti semua grup
-  isReplyPersonal       Boolean @default(false)
-  isReplyGroup          Boolean @default(false)
-  isReplyTag            Boolean @default(false)
-  replyTemplatePersonal String? // template balasan untuk personal chat
-  replyTemplateGroup    String? // template balasan untuk grup (tanpa tag)
-  replyTemplateTag      String? // template balasan ketika bot ditag di grup
+  contacts    Contact[]
+  messages    Message[]
+  autoReplies autoReply?
+  webhooks    Webhook[]
 
-  messages Message[]
-  webhooks Webhook[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Contact {
+  id       Int            @id @default(autoincrement())
+  clientId Int
+  client   WhatsAppClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  waId          String // ID WhatsApp kontak
+  profilePicUrl String? // URL foto profil kontak
+  name          String
+  phone         String // nomor telepon kontak
+  type          ContactType // jenis kontak: PERSONAL, GROUP, COMMUNITY
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -49,13 +70,29 @@ model WhatsAppClient {
 model Message {
   id       Int            @id @default(autoincrement())
   clientId Int
-  client   WhatsAppClient @relation(fields: [clientId], references: [id])
+  client   WhatsAppClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   to          String
   body        String
   direction   String // "IN" / "OUT"
-  status      status    @default(SENT) // status pesan
+  status      MessageStatus @default(SENT) // status pesan
   scheduledAt DateTime? // untuk pesan terjadwal
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model autoReply {
+  id       Int            @id @default(autoincrement())
+  clientId Int            @unique
+  client   WhatsAppClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  isReplyPersonal       Boolean @default(false)
+  isReplyGroup          Boolean @default(false)
+  isReplyTag            Boolean @default(false)
+  replyTemplatePersonal String? // template balasan untuk personal chat
+  replyTemplateGroup    String? // template balasan untuk grup (tanpa tag)
+  replyTemplateTag      String? // template balasan ketika bot ditag di grup
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -64,7 +101,7 @@ model Message {
 model Webhook {
   id       Int            @id @default(autoincrement())
   clientId Int
-  client   WhatsAppClient @relation(fields: [clientId], references: [id])
+  client   WhatsAppClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   name            String // Nama webhook untuk identifikasi
   description     String? // Deskripsi webhook

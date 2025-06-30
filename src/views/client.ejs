@@ -3,9 +3,9 @@
   <h2 class="text-4xl font-bold text-gray-800 text-center">Client Details</h2>
 
   <!-- Main Grid -->
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+  <section class="grid grid-cols-1 lg:grid-cols-3 gap-8">
     <!-- QR & Status -->
-    <aside class="bg-gray-50 border border-gray-200 rounded-xl p-6 flex flex-col items-center space-y-4">
+    <aside class="bg-gray-50 border border-gray-200 rounded-xl p-6 flex flex-col items-center justify-between space-y-4">
       <div class="relative w-48 h-48">
         <img 
           id="qr-<%= client.id %>" 
@@ -14,20 +14,12 @@
         />
         <div 
           id="qr-placeholder-<%= client.id %>" 
-          class="absolute inset-0 flex items-center justify-center text-gray-400"
+          class="absolute inset-0 flex items-center justify-center text-gray-400 text-center opacity-75 transition-opacity"
         >
           <span>QR code akan muncul di sini</span>
         </div>
       </div>
-      <button
-        onclick="socket.emit('request-qr', { clientId: '<%= client.id %>' })"
-        class="w-full py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-blue-400"
-      >
-        Generate QR
-      </button>
-      <span class="px-3 py-1 rounded-full font-medium text-sm <%= client.status ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' %>">
-        <%= client.status ? 'Active' : 'Inactive' %>
-      </span>
+      <span id="status-<%= client.id %>" class="px-3 py-1 rounded-full font-medium text-sm transition-colors"></span>
     </aside>
 
     <!-- Edit Form -->
@@ -47,28 +39,175 @@
             />
           </div>
           <div>
-            <label for="secretKey" class="block text-gray-700 font-medium">New Secret Key</label>
+            <label for="description" class="block text-gray-700 font-medium">Description</label>
             <input
-              id="secretKey"
-              name="secretKey"
-              type="password"
-              placeholder="••••••••"
+              id="description"
+              name="description"
+              type="text"
+              value="<%= client.description || '' %>"
+              placeholder="description"
               class="mt-1 w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-indigo-500 focus:border-indigo-500"
             />
-            <p class="text-xs text-gray-500 mt-1">Leave blank to keep current secret.</p>
+            <p class="text-xs text-gray-500 mt-1">Leave blank to keep current description.</p>
           </div>
         </div>
 
         <div class="flex justify-end space-x-4">
-          <a href="/clients" class="px-5 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100">Cancel</a>
           <button type="submit" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium">Update</button>
         </div>
       </form>
     </section>
-  </div>
+  </section>
+
+  <!-- Contacts & Messages Section -->
+  <section id="page-data" data-contact-page="<%= contactPage %>" data-contact-total-pages="<%= contactTotalPages %>" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div class="bg-white border border-gray-200 rounded-xl p-6">
+      <div class="flex items-center justify-between mb-4 ">
+        <h2 class="text-2xl font-semibold text-gray-700">Contacts</h2>
+        <div class="flex gap-1 flex-wrap items-center">
+          <% const pageStart = Math.max(1, contactPage - 2); %>
+          <% const pageEnd = Math.min(contactTotalPages, pageStart + 4); %>
+
+          <% if (contactPage > 1) { %>
+            <a href="?contactPage=<%= contactPage - 1 %>&messagePage=<%= messagePage %>&search=<%= search %>&type=<%= type %>" class="px-3 py-1 rounded bg-gray-100 text-gray-700 hover:bg-gray-200">« Prev</a>
+          <% } %>
+
+          <% for (let i = pageStart; i <= pageEnd; i++) { %>
+            <a 
+              href="?contactPage=<%= i %>&messagePage=<%= messagePage %>&search=<%= search %>&type=<%= type %>" 
+              class="px-3 py-1 rounded <%= i === contactPage ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-800 hover:bg-gray-200' %>"
+            ><%= i %></a>
+          <% } %>
+
+          <% if (contactPage < contactTotalPages) { %>
+            <a href="?contactPage=<%= contactPage + 1 %>&messagePage=<%= messagePage %>&search=<%= search %>&type=<%= type %>" class="px-3 py-1 rounded bg-gray-100 text-gray-700 hover:bg-gray-200">Next »</a>
+          <% } %>
+        </div>  
+      </div>
+
+      <!-- Filters & Search -->
+      <div class="flex flex-wrap items-start justify-between">
+        <div class="flex flex-wrap gap-2 mb-4">
+          <% const types = ['all', 'PERSONAL', 'GROUP', 'COMMUNITY']; %>
+          <% types.forEach(t => { 
+              const isActive = (t === 'all' && !type) || (t === type);
+          %>
+            <a
+              href="?contactPage=1&messagePage=<%= messagePage %>&search=<%= search %>&type=<%= t === 'all' ? '' : t %>"
+              class="px-4 py-2 rounded-lg 
+                <%= isActive ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300' %>"
+            >
+              <%= t === 'all' ? 'All' : t.charAt(0) + t.slice(1).toLowerCase() %>
+            </a>
+          <% }) %>
+        </div>
+
+        <form method="GET" class="mb-4 flex gap-2">
+          <input 
+            name="search"
+            value="<%= search %>"
+            type="text" 
+            placeholder="Search name or phone..."
+            class="border px-3 py-2 rounded-lg"
+          />
+          <input type="hidden" name="contactPage" value="1" />
+          <input type="hidden" name="messagePage" value="<%= messagePage %>" />
+          <input type="hidden" name="type" value="<%= type %>" />
+          <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded-lg">Search</button>
+        </form>
+      </div>
+      
+
+      <!-- List -->
+      <div id="contacts-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <% contacts.forEach(contact => { %>
+          <div 
+            class="contact-card p-4 border rounded-lg shadow-sm transition bg-white"
+            data-type="<%= contact.type %>"
+          >
+            <div class="flex items-center space-x-4">
+              <img 
+                src="<%= contact.profilePicUrl || 'https://via.placeholder.com/50' %>" 
+                alt="Profile Picture" 
+                class="w-12 h-12 rounded-full object-cover"
+              />
+              <div>
+                <p class="font-medium text-gray-800"><%= contact.name %></p>
+                <p class="text-sm text-gray-600"><%= contact.waId %></p>
+                <p class="text-sm text-gray-500"><%= contact.phone %></p>
+                <span class="text-xs inline-block mt-1 px-2 py-0.5 bg-gray-100 text-gray-600 rounded"><%= contact.type %></span>
+              </div>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+    </div>
+
+    <div class="bg-white border border-gray-200 rounded-xl p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-semibold text-gray-700">Messages</h2>
+        <div class="flex gap-1 flex-wrap items-center">
+          <% const msgPageStart = Math.max(1, messagePage - 2); %>
+          <% const msgPageEnd = Math.min(messageTotalPages, msgPageStart + 4); %>
+
+          <% if (messagePage > 1) { %>
+            <a 
+              href="?contactPage=<%= contactPage %>&messagePage=<%= messagePage - 1 %>&search=<%= search %>&type=<%= type %>" 
+              class="px-3 py-1 rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+            >« Prev</a>
+          <% } %>
+
+          <% for (let i = msgPageStart; i <= msgPageEnd; i++) { %>
+            <a 
+              href="?contactPage=<%= contactPage %>&messagePage=<%= i %>&search=<%= search %>&type=<%= type %>" 
+              class="px-3 py-1 rounded <%= i === messagePage ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-800 hover:bg-gray-200' %>"
+            ><%= i %></a>
+          <% } %>
+
+          <% if (messagePage < messageTotalPages) { %>
+            <a 
+              href="?contactPage=<%= contactPage %>&messagePage=<%= messagePage + 1 %>&search=<%= search %>&type=<%= type %>" 
+              class="px-3 py-1 rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+            >Next »</a>
+          <% } %>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Isi Pesan</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Waktu Diterima</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+            <% if (messages.length === 0) { %>
+              <tr>
+                <td colspan="3" class="px-6 py-4 whitespace-nowrap text-center text-gray-500">Belum ada pesan</td>
+              </tr>
+            <% } else { %>
+              <% messages.forEach(message => { %>
+                <tr>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700"><%= message.id %></td>
+                  <td class="px-6 py-4 whitespace-normal text-sm text-gray-700"><%= message.body %></td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <%= new Date(message.createdAt).toLocaleString('id-ID', {
+                          day: '2-digit', month: 'short', year: 'numeric',
+                          hour: '2-digit', minute: '2-digit'
+                        }) %>
+                  </td>
+                </tr>
+              <% }) %>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
 
   <!-- Send & Schedule -->
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+  <section class="grid grid-cols-1 md:grid-cols-2 gap-6">
     <!-- Send -->
     <div class="bg-white border border-gray-200 rounded-xl p-6">
       <h3 class="text-2xl font-semibold mb-4">Kirim Pesan</h3>
@@ -104,7 +243,7 @@
         <button type="submit" class="w-full py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg">Jadwalkan</button>
       </form>
     </div>
-  </div>
+  </section>
 
   <!-- Manage Auto-Reply -->
   <div class="bg-white border border-gray-200 rounded-xl p-6">
@@ -118,7 +257,7 @@
           name="isReplyPersonal"
           value="true"
           class="h-5 w-5 text-indigo-600 border-gray-300 rounded"
-          <%= client.isReplyPersonal ? 'checked' : '' %>
+          <%= client.autoReplies.isReplyPersonal ? 'checked' : '' %>
         />
         <label for="isReplyPersonal" class="ml-2 text-gray-700">Balas Otomatis Personal</label>
       </div>
@@ -128,9 +267,9 @@
           id="replyTemplatePersonal"
           name="replyTemplatePersonal"
           rows="2"
-          <%= client.isReplyPersonal ? '' : 'disabled' %>
+          <%= client.autoReplies.isReplyPersonal ? '' : 'disabled' %>
           class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
-        ><%= client.replyTemplatePersonal || '' %></textarea>
+        ><%= client.autoReplies.replyTemplatePersonal || '' %></textarea>
       </div>
       <div class="flex items-center">
         <input
@@ -139,7 +278,7 @@
           name="isReplyGroup"
           value="true"
           class="h-5 w-5 text-indigo-600 border-gray-300 rounded"
-          <%= client.isReplyGroup ? 'checked' : '' %>
+          <%= client.autoReplies.isReplyGroup ? 'checked' : '' %>
         />
         <label for="isReplyGroup" class="ml-2 text-gray-700">Balas Otomatis di Grup</label>
       </div>
@@ -149,9 +288,9 @@
           id="replyTemplateGroup"
           name="replyTemplateGroup"
           rows="2"
-          <%= client.isReplyGroup ? '' : 'disabled' %>
+          <%= client.autoReplies.isReplyGroup ? '' : 'disabled' %>
           class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
-        ><%= client.replyTemplateGroup || '' %></textarea>
+        ><%= client.autoReplies.replyTemplateGroup || '' %></textarea>
       </div>
       <div class="flex items-center">
         <input
@@ -160,7 +299,7 @@
           name="isReplyTag"
           value="true"
           class="h-5 w-5 text-indigo-600 border-gray-300 rounded"
-          <%= client.isReplyTag ? 'checked' : '' %>
+          <%= client.autoReplies.isReplyTag ? 'checked' : '' %>
         />
         <label for="isReplyTag" class="ml-2 text-gray-700">Balas Saat Ditag di Grup</label>
       </div>
@@ -170,9 +309,9 @@
           id="replyTemplateTag"
           name="replyTemplateTag"
           rows="2"
-          <%= client.isReplyTag ? '' : 'disabled' %>
+          <%= client.autoReplies.isReplyTag ? '' : 'disabled' %>
           class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
-        ><%= client.replyTemplateTag || '' %></textarea>
+        ><%= client.autoReplies.replyTemplateTag || '' %></textarea>
       </div>
       <button type="submit" class="w-full py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg">Simpan Auto-Reply</button>
     </form>
@@ -317,57 +456,22 @@
     </div>
   </section>
 
-
-   <!-- Received Messages -->
-  <section class="mt-10 bg-white border border-gray-200 rounded-xl p-6">
-  <h3 class="text-2xl font-semibold mb-4">Pesan Diterima</h3>
-  <div class="overflow-x-auto">
-    <table class="min-w-full divide-y divide-gray-200" id="messages-table">
-      <thead class="bg-gray-50">
-        <tr>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Isi Pesan</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Waktu Diterima</th>
-        </tr>
-      </thead>
-      <tbody class="bg-white divide-y divide-gray-200">
-        <% if (client.messages.length === 0) { %>
-          <tr>
-            <td colspan="3" class="px-6 py-4 whitespace-nowrap text-center text-gray-500">Belum ada pesan</td>
-          </tr>
-        <% } else { %>
-          <% client.messages.forEach((message, idx) => { 
-               const isExtra = idx >= 10;
-          %>
-            <tr class="<%= isExtra ? 'extra-row hidden' : '' %>">
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700"><%= message.id %></td>
-              <td class="px-6 py-4 whitespace-normal text-sm text-gray-700"><%= message.body %></td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                <%= new Date(message.createdAt).toLocaleString('id-ID', {
-                      day: '2-digit', month: 'short', year: 'numeric',
-                      hour: '2-digit', minute: '2-digit'
-                    }) %>
-              </td>
-            </tr>
-          <% }) %>
-          <% if (client.messages.length > 10) { %>
-            <tr id="toggle-row">
-              <td colspan="3" class="px-6 py-4 text-center">
-                <a href="#" id="toggle-btn" class="text-blue-500 underline">more</a>
-              </td>
-            </tr>
-          <% } %>
-        <% } %>
-      </tbody>
-    </table>
-  </div>
-</section>
-
-  <style>
-    .hidden { display: none; }
-  </style>
-
   <script>
+    // Initialize page data from server-side variables
+    document.addEventListener('DOMContentLoaded', () => {
+      const pageEl = document.getElementById('page-data');
+      if (!pageEl) {
+        console.warn("❌ Elemen #page-data tidak ditemukan di DOM");
+        return;
+      }
+
+      const contactPage = parseInt(pageEl.dataset.contactPage || "1");
+      const contactTotalPages = parseInt(pageEl.dataset.contactTotalPages || "1");
+      const pageStart = Math.max(1, contactPage - 2);
+      const pageEnd = Math.min(contactTotalPages, pageStart + 4);
+    });
+
+    // Toggle textarea disable state based on checkbox
     document.addEventListener("DOMContentLoaded", function () {
       // Daftar pasangan ID checkbox dan ID textarea
       const pairs = [
@@ -393,28 +497,30 @@
       });
     });
 
-    // Toggle extra rows in messages table  
-    document.addEventListener('DOMContentLoaded', () => {
-      const btn = document.getElementById('toggle-btn');
-      if (!btn) return;
-
-      btn.addEventListener('click', e => {
-        e.preventDefault();
-        const extras = document.querySelectorAll('.extra-row');
-        const showing = btn.textContent === 'less';
-
-        extras.forEach(row => {
-          row.classList.toggle('hidden', showing);
-        });
-
-        btn.textContent = showing ? 'more' : 'less';
-      });
-    });
-    
     // Handle QR code generation and AJAX form submission
     document.addEventListener('DOMContentLoaded', () => {
       const socket = io();
-
+      socket.on("status", ({ clientId, status }) => {
+        const td = document.getElementById(`status-${clientId}`);
+        if (td) {
+          td.textContent = status;
+          // Reset all status-related classes
+          td.classList.remove(
+            'bg-green-100', 'text-green-800',
+            'bg-yellow-100', 'text-yellow-800',
+            'bg-red-100', 'text-red-800'
+          );
+          
+          // Tambahkan class berdasarkan status
+          if (status === "CONNECTED") {
+            td.classList.add('bg-green-100', 'text-green-800');
+          } else if (status === "SCANNING") {
+            td.classList.add('bg-yellow-100', 'text-yellow-800');
+          } else if (status === "DISCONNECTED") {
+            td.classList.add('bg-red-100', 'text-red-800');
+          }
+        }
+      });
       socket.on('qr', ({ clientId, qr }) => {
         const img = document.getElementById(`qr-${clientId}`);
         const placeholder = document.getElementById(`qr-placeholder-${clientId}`);

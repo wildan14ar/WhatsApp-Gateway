@@ -1,9 +1,9 @@
-<!-- views/clients.ejs -->
 <div class="max-w-7xl mx-auto px-4 py-6">
   <!-- Header + Add Form -->
   <div class="flex flex-col md:flex-row md:justify-between md:items-center mb-8 space-y-4 md:space-y-0">
     <h2 class="text-2xl font-bold text-green-600">WhatsApp Clients</h2>
-    <form action="/clients" method="post" class="flex flex-wrap items-center gap-4">
+    <form action="/clients" method="post" class="ajax-form flex flex-wrap items-center gap-4">
+      <input type="hidden" name="_method" value="POST" />
       <input
         type="text"
         name="name"
@@ -12,9 +12,9 @@
         class="px-4 py-2 border border-gray-300 rounded-lg w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-green-400"
       />
       <input
-        type="password"
-        name="secretKey"
-        placeholder="Secret key"
+        type="text"
+        name="description"
+        placeholder="Client description"
         required
         class="px-4 py-2 border border-gray-300 rounded-lg w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-green-400"
       />
@@ -28,20 +28,24 @@
   </div>
 
   <!-- Grid of Client Cards -->
-  <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+  <div id="client-list" class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
     <% clients.forEach(c => { %>
       <div class="bg-white shadow-md rounded-xl p-5 hover:shadow-lg transition-shadow">
         <div class="flex items-center justify-between">
           <div>
             <div class="text-sm text-gray-500">ID: <span class="font-medium text-gray-700"><%= c.id %></span></div>
             <div class="text-lg font-semibold text-gray-900"><%= c.name %></div>
+            <div class="text-sm text-gray-500"><%= c.description %></div>
           </div>
           <div>
-            <% if (c.status) { %>
-              <span class="inline-block px-3 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">Active</span>
-            <% } else { %>
-              <span class="inline-block px-3 py-1 bg-red-100 text-red-800 text-xs font-medium rounded-full">Inactive</span>
-            <% } %>
+            <span
+              class="px-3 py-1 text-xs font-semibold rounded-full
+              <%= c.status === 'SCANNING' ? 'bg-yellow-100 text-yellow-800' : '' %>
+              <%= c.status === 'CONNECTED' ? 'bg-green-100 text-green-800' : '' %>
+              <%= c.status === 'DISCONNECTED' ? 'bg-red-100 text-red-800' : '' %>"
+            >
+              <%= c.status %>
+            </span>
           </div>
         </div>
         <div class="mt-3 text-sm text-gray-500">
@@ -54,7 +58,8 @@
           >
             Detail
           </a>
-          <form action="/clients/<%= c.id %>?_method=DELETE" method="post" class="flex-1">
+          <form action="/clients/<%= c.id %>" method="post" class="ajax-form flex-1">
+            <input type="hidden" name="_method" value="DELETE" />
             <button
               type="submit"
               class="w-full py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition"
@@ -67,3 +72,47 @@
     <% }) %>
   </div>
 </div>
+
+<!-- AJAX Script -->
+<script>
+    // Handle AJAX form submissions for client add and delete
+    document.querySelectorAll('form.ajax-form').forEach(form => {
+      form.addEventListener('submit', async e => {
+        e.preventDefault();
+
+        const formData = new FormData(form);
+        const method = (formData.get('_method') || form.method).toUpperCase();
+        formData.delete('_method');
+
+        const payload = Object.fromEntries(formData.entries());
+
+        try {
+          const res = await fetch(form.action, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+
+          if (res.ok) {
+            alert('✅ Berhasil!');
+
+            // Ambil ulang daftar client dan render ulang client-list
+            const html = await fetch('/clients').then(r => r.text());
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const newClientList = doc.querySelector('#client-list');
+            if (newClientList) {
+              document.querySelector('#client-list').innerHTML = newClientList.innerHTML;
+            }
+          } else {
+            const errorText = await res.text();
+            console.error(errorText);
+            alert('❌ Gagal!');
+          }
+        } catch (err) {
+          console.error(err);
+          alert('❌ Gagal!');
+        }
+      });
+    });
+</script>
