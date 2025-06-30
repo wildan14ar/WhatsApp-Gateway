@@ -4,9 +4,18 @@ import { prisma } from '../lib/prisma';
 import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
-import { hashSecretKey, verifySecretKey } from '../lib/crypto';
-import { initWhatsAppClient } from '../services/whatsappClients';
-import { sendWhatsAppMessage } from '../services/whatsappClients';
+import { encryptSecretKey, decryptSecretKey, compareEncryptedSecretKey } from '../lib/crypto';
+import { initWhatsAppClient, sendWhatsAppMessage } from '../services/whatsappClients';
+
+function parseToList(to: string | string[]): string[] {
+  if (Array.isArray(to)) return to;
+
+  // split berdasarkan koma, spasi, atau kombinasi
+  return to
+    .split(/[\s,]+/)
+    .map(x => x.trim())
+    .filter(Boolean);
+}
 
 export const getClients = async (
   req: Request,
@@ -46,14 +55,11 @@ export const getClient = async (
         webhooks: true,
       },
     });
-
     if (!client) {
       res.status(404).send('Client not found');
       return;
     }
-
-    // const decryptedSecretKey = await decryptSecretKey(client.secretKey);
-    // console.log('Decrypted Secret Key:', decryptedSecretKey);
+    const decryptedSecretKey = await decryptSecretKey(client.secretKey);
 
     // === Filter Kontak ===
     const contactAnd: any[] = [];
@@ -98,7 +104,7 @@ export const getClient = async (
     res.render('client', {
       client: {
         ...client,
-        // secretKey: decryptedSecretKey, // tambahkan secretKey yang sudah didekripsi
+        secretKey: decryptedSecretKey, // tambahkan secretKey yang sudah didekripsi
       },
       contacts,
       contactPage,
@@ -122,7 +128,7 @@ export const createClient = async (req: Request, res: Response, next: NextFuncti
       return;
     }
     const secretKey = randomUUID(); // generate secret key
-    const hashedSecretKey = await hashSecretKey(secretKey);
+    const encryptedSecretKey = encryptSecretKey(secretKey);
     const folderName = randomUUID();
     const sessionPath = path.join(process.cwd(), 'sessions', folderName);
     fs.mkdirSync(sessionPath, { recursive: true });
@@ -132,7 +138,7 @@ export const createClient = async (req: Request, res: Response, next: NextFuncti
       data: {
         name,
         description,
-        secretKey: hashedSecretKey,
+        secretKey: encryptedSecretKey,
         status: 'SCANNING', // status awal adalah SCANNING
         sessionFolder: folderName,
         autoReplies: {
@@ -216,18 +222,24 @@ export const deleteClient = async (req: Request, res: Response, next: NextFuncti
 
 export async function sendMessage(req: Request, res: Response) {
   const clientId = +req.params.id;
-  const { to, body } = req.body;
+  const { to, template, media } = req.body;
+
+  const parsedTo = parseToList(to);
+
   try {
-    await sendWhatsAppMessage(clientId, to, body);
-    await prisma.message.create({
-      data: {
-        clientId,
-        to,
-        body,
-        direction: 'OUT',
-        status: 'SENT',
-      },
+    await sendWhatsAppMessage({
+      clientId,
+      to: parsedTo,
+      template,
+      media: media
+        ? {
+            filename: media.filename,
+            mimetype: media.mimetype,
+            data: Buffer.from(media.data, 'base64'),
+          }
+        : undefined,
     });
+
     res.status(200).json({ success: true });
   } catch (err: any) {
     console.error(err);
@@ -237,18 +249,20 @@ export async function sendMessage(req: Request, res: Response) {
 
 export async function scheduleMessage(req: Request, res: Response) {
   const clientId = +req.params.id;
-  const { to, body, scheduledAt } = req.body;
+  const { to, template, scheduledAt } = req.body;
+
   try {
     await prisma.message.create({
       data: {
         clientId,
-        to,
-        body,
+        to: Array.isArray(to) ? to.join(',') : to,
+        body: template,
         direction: 'OUT',
         status: 'SCHEDULED',
         scheduledAt: new Date(scheduledAt),
       },
     });
+
     res.status(201).json({ success: true });
   } catch (err: any) {
     console.error(err);

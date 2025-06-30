@@ -31,10 +31,16 @@ enum ContactType {
   COMMUNITY
 }
 
+enum direction {
+  IN
+  OUT
+}
+
 model WhatsAppClient {
-  id            Int     @id @default(autoincrement())
+  id            Int          @id @default(autoincrement())
   name          String
-  description   String?
+  description   String
+  signatureKey  String       @default("Key-Author") // kunci rahasia untuk verifikasi pesan
   secretKey     String
   sessionFolder String
   status        ClientStatus @default(SCANNING)
@@ -74,7 +80,7 @@ model Message {
 
   to          String
   body        String
-  direction   String // "IN" / "OUT"
+  direction   direction     @default(IN) // arah pesan: IN (masuk) atau OUT (keluar)
   status      MessageStatus @default(SENT) // status pesan
   scheduledAt DateTime? // untuk pesan terjadwal
 

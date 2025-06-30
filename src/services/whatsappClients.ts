@@ -192,7 +192,18 @@ export const dispatchIncomingWebhooks = async (client: Client, msg: Message, cli
 };
 
 export const initWhatsAppClient = (cfg: { id: number; sessionFolder: string }) => {
-  const readyPromise = new Promise<void>(res => readyResolvers.set(cfg.id, res));
+  const readyPromise = new Promise<void>((res) => {
+    const timeout = setTimeout(() => {
+      console.warn(`⏳ Client ${cfg.id} tidak ready dalam 15 detik`);
+      res(); // resolve walaupun gagal
+    }, 15000); // 15 detik
+
+    readyResolvers.set(cfg.id, () => {
+      clearTimeout(timeout);
+      console.log(`✅ Client ${cfg.id} resolve() dipanggil`);
+      res();
+    });
+  });
   readyMap.set(cfg.id, readyPromise);
 
   const dataPath = path.join(process.cwd(), 'sessions', cfg.sessionFolder);
@@ -223,6 +234,7 @@ export const initWhatsAppClient = (cfg: { id: number; sessionFolder: string }) =
       const waName = client.info?.pushname || 'Unknown';
       const waId = me?._serialized || '';
       const phoneNumber = me?.user || '';
+      console.log(`Client ${cfg.id} siap! Nama: ${waName}, WA ID: ${waId}, Nomor: ${phoneNumber}`);
 
       let profilePicUrl: string | null = null;
       try {
@@ -307,30 +319,90 @@ function normalizeToChatId(raw: string): string {
   return `${num}@c.us`;
 }
 
-export const sendWhatsAppMessage = async (
-  clientId: number,
-  chatId: string,
-  text: string,
-  media?: { filename: string; mimetype: string; data: Buffer }
-) => {
+type MediaPayload = {
+  filename: string;
+  mimetype: string;
+  data: Buffer;
+};
+
+type SendMessageOptions = {
+  clientId: number;
+  to: string | string[]; // bisa 1 nomor atau array
+  template: string; // teks dengan {{name}} dsb
+  media?: MediaPayload;
+  delayMs?: number;
+};
+
+export const sendWhatsAppMessage = async (options: SendMessageOptions) => {
+  const { clientId, to, template, media, delayMs = 1000 } = options;
+
   const client = clients.get(clientId);
   if (!client) throw new Error(`Client ${clientId} belum diinisialisasi`);
 
   const readyPromise = readyMap.get(clientId);
   if (readyPromise) await readyPromise;
 
-  chatId = normalizeToChatId(chatId);
-  text = text || 'swasasalam';
-  console.log(`Sending message from client ${clientId} to ${chatId}:`, text);
+  const targets = Array.isArray(to) ? to : [to];
 
-  if (media) {
-    const mediaMessage = new MessageMedia(
-      media.mimetype,
-      media.data.toString('base64'),
-      media.filename
-    );
-    return client.sendMessage(chatId, mediaMessage, { caption: text });
-  } else {
-    return client.sendMessage(chatId, text);
+  const isBroadcast = targets.length > 1;
+  let contactMap: Record<string, { name: string; phone: string }> = {};
+
+  // 🔍 Siapkan data kontak jika broadcast (untuk personalisasi)
+  if (isBroadcast) {
+    const contacts = await prisma.contact.findMany({
+      where: { clientId },
+    });
+    for (const c of contacts) {
+      contactMap[c.phone] = { name: c.name, phone: c.phone };
+    }
+  }
+
+  for (const raw of targets) {
+    const chatId = normalizeToChatId(raw);
+    const contact = contactMap[raw] || { name: raw, phone: raw };
+
+    // Ganti template {{name}}, {{phone}}
+    const personalized = template
+      .replace(/{{name}}/gi, contact.name)
+      .replace(/{{phone}}/gi, contact.phone);
+
+    try {
+      if (media) {
+        const mediaMessage = new MessageMedia(
+          media.mimetype,
+          media.data.toString('base64'),
+          media.filename
+        );
+        await client.sendMessage(chatId, mediaMessage, { caption: personalized });
+      } else {
+        await client.sendMessage(chatId, personalized);
+      }
+
+      await prisma.message.create({
+        data: {
+          clientId,
+          to: chatId,
+          body: personalized,
+          direction: 'OUT',
+          status: 'SENT',
+        },
+      });
+
+      console.log(`✅ Terkirim ke ${raw}`);
+    } catch (err) {
+      console.error(`❌ Gagal kirim ke ${raw}:`, err);
+
+      await prisma.message.create({
+        data: {
+          clientId,
+          to: chatId,
+          body: personalized,
+          direction: 'OUT',
+          status: 'FAILED',
+        },
+      });
+    }
+
+    if (isBroadcast) await new Promise((res) => setTimeout(res, delayMs));
   }
 };
