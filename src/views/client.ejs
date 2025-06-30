@@ -351,7 +351,7 @@
     <div class="overflow-x-auto mb-6 border-b border-gray-200 pb-4 w-full">
       <form
         id="new-webhook-form"
-        class="ajax-form flex flex-nowrap items-end items-center justify-between space-x-4"
+        class="ajax-form flex flex-nowrap items-end items-left justify-between space-x-4"
         action="/clients/<%= client.id %>/webhook"
         method="POST"
       >
@@ -405,22 +405,30 @@
           />
         </div>
 
-        <!-- Checkboxes -->
-        <div class="flex space-x-6">
-          <label class="flex items-center space-x-1">
-            <input id="new-isPersonal" name="isPersonal" type="checkbox" value="true" class="h-5 w-5 text-indigo-600 rounded" />
-            <span class="text-gray-700">Personal</span>
-          </label>
-          <label class="flex items-center space-x-1">
-            <input id="new-isGroup" name="isGroup" type="checkbox" value="true" class="h-5 w-5 text-indigo-600 rounded" />
-            <span class="text-gray-700">Group</span>
-          </label>
-          <label class="flex items-center space-x-1">
-            <input id="new-isTag" name="isTag" type="checkbox" value="true" class="h-5 w-5 text-indigo-600 rounded" />
-            <span class="text-gray-700">Tag</span>
-          </label>
+        <!-- Secret Key -->
+        <div class="flex-shrink-0 w-64">
+          <label for="new-secretKey" class="block text-gray-700">Secret Key</label>
+          <input
+            id="new-secretKey"
+            name="secretKey"
+            type="text"
+            placeholder="Secret Key"
+            class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-purple-500 focus:border-purple-500"
+          />
         </div>
 
+        <!-- Output Format -->
+        <div class="flex-shrink-0 w-48">
+          <label for="new-outputFormat" class="block text-gray-700">Output Format</label>
+          <input
+            id="new-outputFormat"
+            name="outputFormat"
+            type="text"
+            placeholder="$body.output"
+            class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-purple-500 focus:border-purple-500"
+          />
+        </div>
+        
         <!-- Submit Button -->
         <div class="flex-shrink-0">
           <button
@@ -443,6 +451,7 @@
             <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Desc</th>
             <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Secret Key</th>
             <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Signature Header</th>
+            <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Output Format</th>
             <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Personal</th>
             <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Group</th>
             <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Tag</th>
@@ -463,8 +472,9 @@
                   <td class="px-4 py-2 w-64"><input name="url" value="<%= wh.url %>" required class="w-full border-gray-300 rounded-lg px-2 py-1" /></td>
                   <td class="px-4 py-2 w-48"><input name="name" type="text" value="<%= wh.name %>" class="w-full border-gray-300 rounded-lg px-2 py-1" /></td>
                   <td class="px-4 py-2 w-56"><input name="description" type="text" value="<%= wh.description %>" class="w-full border-gray-300 rounded-lg px-2 py-1" /></td>
-                  <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-700"><%= wh.secretKey %></td>
+                  <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-700"><input name="secretKey" type="text" value="<%= wh.secretKey %>" class="w-full border-gray-300 rounded-lg px-2 py-1" /></td>
                   <td class="px-4 py-2 w-48"><input name="signatureHeader" type="text" value="<%= wh.signatureHeader %>" class="w-full border-gray-300 rounded-lg px-2 py-1" /></td>
+                  <td class="px-4 py-2 w-48"><input name="outputFormat" type="text" value="<%= wh.outputFormat %>" class="w-full border-gray-300 rounded-lg px-2 py-1" /></td>
                   <td class="px-4 py-2 text-center"><input name="isPersonal" type="checkbox" value="true" <%= wh.isPersonal ? 'checked' : '' %> class="h-4 w-4 text-indigo-600" /></td>
                   <td class="px-4 py-2 text-center"><input name="isGroup" type="checkbox" value="true" <%= wh.isGroup ? 'checked' : '' %> class="h-4 w-4 text-indigo-600" /></td>
                   <td class="px-4 py-2 text-center"><input name="isTag" type="checkbox" value="true" <%= wh.isTag ? 'checked' : '' %> class="h-4 w-4 text-indigo-600" /></td>

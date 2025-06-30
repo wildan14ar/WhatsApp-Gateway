@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma';
 import { io } from '../app';
 import axios from 'axios';
 import path from 'path';
+import get from 'lodash.get';
 
 const clients = new Map<number, Client>();
 const readyMap = new Map<number, Promise<void>>();
@@ -122,7 +123,11 @@ export const handleAutoReply = async (client: Client, msg: Message, clientId: nu
     );
 
     try {
-      await msg.reply(text);
+      if (isTagGroup) {
+        await msg.reply(text);
+      } else {
+        await client.sendMessage(msg.from, text);
+      }
       await prisma.message.create({
         data: {
           clientId,
@@ -170,12 +175,32 @@ export const dispatchIncomingWebhooks = async (client: Client, msg: Message, cli
         { headers: { [hook.signatureHeader]: hook.secretKey } }
       );
 
-      console.log(`Webhook IN (${hook.id}) response:`, response);
-      const data = response.data as { output?: string };
-      const replyText = typeof data.output === 'string'
-        ? data.output
-        : JSON.stringify(response.data);
-      await msg.reply(replyText);
+      console.log(`Webhook IN (${hook.id}) response:`, response.data);
+
+      let replyText: string;
+      const format = hook.outputFormat || '$body.output';
+
+      if (format.startsWith('$body.')) {
+        const path = format.replace('$body.', '');
+        const output = get(response.data, path);
+        replyText = typeof output === 'string' ? output : JSON.stringify(output ?? response.data);
+      } else if (format.startsWith('$headers.')) {
+        const path = format.replace('$headers.', '');
+        const output = get(response.headers, path);
+        replyText = typeof output === 'string' ? output : JSON.stringify(output ?? response.headers);
+      } else if (format === '$status') {
+        replyText = String(response.status);
+      } else {
+        // fallback: kirim seluruh response body
+        replyText = JSON.stringify(response.data);
+      }
+
+      if (isTagGroup) {
+        await msg.reply(replyText);
+      } else {
+        await client.sendMessage(msg.from, replyText);
+      }
+
       await prisma.message.create({
         data: {
           clientId,
