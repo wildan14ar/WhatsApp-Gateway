@@ -196,7 +196,6 @@
           <input
             id="new-url"
             name="url"
-            type="url"
             placeholder="https://example.com/webhook"
             required
             class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-purple-500 focus:border-purple-500"
@@ -294,7 +293,7 @@
                 <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-700"><%= wh.id %></td>
                 <form class="ajax-form flex w-full" action="/clients/webhook/<%= wh.id %>" method="POST">
                   <input type="hidden" name="_method" value="PUT">
-                  <td class="px-4 py-2 w-64"><input name="url" type="url" value="<%= wh.url %>" required class="w-full border-gray-300 rounded-lg px-2 py-1" /></td>
+                  <td class="px-4 py-2 w-64"><input name="url" value="<%= wh.url %>" required class="w-full border-gray-300 rounded-lg px-2 py-1" /></td>
                   <td class="px-4 py-2 w-48"><input name="name" type="text" value="<%= wh.name %>" class="w-full border-gray-300 rounded-lg px-2 py-1" /></td>
                   <td class="px-4 py-2 w-56"><input name="description" type="text" value="<%= wh.description %>" class="w-full border-gray-300 rounded-lg px-2 py-1" /></td>
                   <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-700"><%= wh.secretKey %></td>
@@ -369,6 +368,32 @@
   </style>
 
   <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      // Daftar pasangan ID checkbox dan ID textarea
+      const pairs = [
+        { checkboxId: "isReplyPersonal", textareaId: "replyTemplatePersonal" },
+        { checkboxId: "isReplyGroup", textareaId: "replyTemplateGroup" },
+        { checkboxId: "isReplyTag", textareaId: "replyTemplateTag" },
+      ];
+
+      pairs.forEach(({ checkboxId, textareaId }) => {
+        const checkbox = document.getElementById(checkboxId);
+        const textarea = document.getElementById(textareaId);
+
+        // Fungsi untuk toggle disable textarea
+        const toggleTextarea = () => {
+          textarea.disabled = !checkbox.checked;
+        };
+
+        // Inisialisasi kondisi saat halaman dimuat
+        toggleTextarea();
+
+        // Tambahkan event listener saat checkbox berubah
+        checkbox.addEventListener("change", toggleTextarea);
+      });
+    });
+
+    // Toggle extra rows in messages table  
     document.addEventListener('DOMContentLoaded', () => {
       const btn = document.getElementById('toggle-btn');
       if (!btn) return;
@@ -386,6 +411,7 @@
       });
     });
     
+    // Handle QR code generation and AJAX form submission
     document.addEventListener('DOMContentLoaded', () => {
       const socket = io();
 

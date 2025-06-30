@@ -9,6 +9,25 @@ const clients = new Map<number, Client>();
 const readyMap = new Map<number, Promise<void>>();
 const readyResolvers = new Map<number, () => void>();
 
+function normalizeUrl(raw: string): string {
+  // hilangkan spasi
+  let url = raw.trim();
+  // ganti multiple dots di host menjadi satu
+  url = url.replace(/\.{2,}/g, '.');
+  // kalau tidak ada protocol, tambahkan http://
+  if (!/^https?:\/\//i.test(url)) {
+    url = 'http://' + url;
+  }
+  // validasi
+  try {
+    new URL(url);
+  } catch {
+    throw new Error(`Malformed webhook URL: ${url}`);
+  }
+  return url;
+}
+
+
 export const initWhatsAppClient = (cfg: { id: number; sessionFolder: string }) => {
   const readyPromise = new Promise<void>(res => readyResolvers.set(cfg.id, res));
   readyMap.set(cfg.id, readyPromise);
@@ -127,9 +146,11 @@ export const initWhatsAppClient = (cfg: { id: number; sessionFolder: string }) =
       (isTagGroup  && h.isTag)
     );
     for (const hook of inHooks) {
+      const webhookUrl = normalizeUrl(hook.url);
+      console.log(`Dispatching IN webhook (${hook.id}) to ${webhookUrl}`);
       try {
         const response = await axios.post(
-          hook.url,
+          webhookUrl,
           {
             clientId:  cfg.id,
             direction: 'IN',
@@ -142,6 +163,7 @@ export const initWhatsAppClient = (cfg: { id: number; sessionFolder: string }) =
           },
           { headers: { [hook.signatureHeader]: hook.secretKey } }
         );
+        console.log(`Webhook IN (${hook.id}) response:`, response);
         // Reply back to sender with webhook response
         const data = response.data as { output?: string };
         const replyText = typeof data.output === 'string'
