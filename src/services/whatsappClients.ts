@@ -234,7 +234,11 @@ export const initWhatsAppClient = (cfg: { id: number; sessionFolder: string }) =
   const dataPath = path.join(process.cwd(), 'sessions', cfg.sessionFolder);
   const client = new Client({
     authStrategy: new LocalAuth({ clientId: String(cfg.id), dataPath }),
-    puppeteer: { headless: true },
+    puppeteer: {
+      headless: true,
+      executablePath: '/usr/bin/google-chrome', // Pastikan sesuai hasil `which google-chrome`
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    },
   });
 
   io.emit('status', { clientId: cfg.id, status: "DISCONNECTED" });
