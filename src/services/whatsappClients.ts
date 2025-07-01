@@ -172,7 +172,7 @@ export const dispatchIncomingWebhooks = async (client: Client, msg: Message, cli
           isPersonal,
           isTagGroup,
         },
-        { headers: { [hook.signatureHeader]: hook.secretKey } }
+        { headers: { [hook.signatureHeader as string]: hook.secretKey } }
       );
 
       console.log(`Webhook IN (${hook.id}) response:`, response.data);
