@@ -237,7 +237,7 @@ export const initWhatsAppClient = (cfg: { id: number; sessionFolder: string }) =
     puppeteer: {
       headless: true,
       executablePath: '/usr/bin/google-chrome', // Pastikan sesuai hasil `which google-chrome`
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      args: ['--no-sandbox', '--disable-setuid-sandbox'], // Tambahkan argumen yang diperlukan
     },
   });
 
