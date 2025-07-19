@@ -2,20 +2,17 @@ version: "3.9"
 services:
   whatsapp-gateway:
     build: .
-    image: whatsapp-gateway:latest
-    container_name: whatsapp-gateway
+    image: whatsapp-gateway:dev
+    container_name: whatsapp-gateway-dev
     ports:
-      - "8080:8080"
-    volumes:
-      - ./:/app               # Mount seluruh project (dev)
-      - /app/node_modules     # Biarkan node_modules di dalam container
-      - ./data.db:/app/data.db  # Mount SQLite DB (hati2 di prod)
-      - ./prisma:/app/prisma    # Prisma schema
-      - ./.env:/app/.env        # Env file
+      - "8087:8080"
     environment:
+      - PUPPETEER_SKIP_DOWNLOAD=true
+      - NODE_ENV=development
       - PORT=8080
-      - ENCRYPTION_KEY=5c8f08f14674eaaa207be1132be0e4f701239abc885923ddb86f354be117f43c
-      # Tambah var lain kalau ada
-    command: npm run dev      # Development mode, pakai ts-node-dev
-
-# Untuk production, ubah 'command' ke ["node", "dist/app.js"] dan hapus volumes mounting source
+    volumes:
+      - ./:/app
+      - /app/node_modules
+      - ./data.db:/app/data.db       # SQLite DB (opsional, kalau pakai)
+      - ./.env:/app/.env             # .env file
+    command: /bin/sh -c "npx prisma generate && npm run dev"
