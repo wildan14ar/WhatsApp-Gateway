@@ -1,0 +1,21 @@
+version: "3.9"
+services:
+  whatsapp-gateway:
+    build: .
+    image: whatsapp-gateway:latest
+    container_name: whatsapp-gateway
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./:/app               # Mount seluruh project (dev)
+      - /app/node_modules     # Biarkan node_modules di dalam container
+      - ./data.db:/app/data.db  # Mount SQLite DB (hati2 di prod)
+      - ./prisma:/app/prisma    # Prisma schema
+      - ./.env:/app/.env        # Env file
+    environment:
+      - PORT=8080
+      - ENCRYPTION_KEY=5c8f08f14674eaaa207be1132be0e4f701239abc885923ddb86f354be117f43c
+      # Tambah var lain kalau ada
+    command: npm run dev      # Development mode, pakai ts-node-dev
+
+# Untuk production, ubah 'command' ke ["node", "dist/app.js"] dan hapus volumes mounting source
