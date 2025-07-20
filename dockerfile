@@ -1,43 +1,48 @@
 # syntax=docker/dockerfile:1
 
-# Build step
-FROM node:22-alpine AS builder
+FROM node:22-bookworm
 
 WORKDIR /app
 
-# Copy dependency files
-COPY package.json package-lock.json* yarn.lock* ./
+RUN echo "deb https://ftp.debian.org/debian/ bookworm contrib main non-free non-free-firmware" > /etc/apt/sources.list
 
-# Install dependencies (faster with cache)
+RUN cat /etc/apt/sources.list
+
+# Install chromium (for puppeteer/whatsapp-web.js)
+RUN apt-get update && \
+    apt-get install --allow-unauthenticated -y \
+    chromium \
+    fonts-liberation \
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libcups2 \
+    libdbus-1-3 \
+    libdrm2 \
+    libgbm1 \
+    libgtk-3-0 \
+    libnspr4 \
+    libnss3 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
+    xdg-utils \
+    --no-install-recommends
+
+RUN ln -sf /usr/bin/chromium /usr/bin/google-chrome
+
+
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+ENV CHROME_BIN=/usr/bin/chromium
+
+# Install dependencies
+COPY package.json package-lock.json* yarn.lock* ./
 RUN npm install
 
-# Copy rest of app
+# Copy source code
 COPY . .
 
-# Generate Prisma client
-RUN npx prisma generate
-
-# Build TypeScript
-RUN npm run build
-
-# --- Final step for runtime ---
-FROM node:22-alpine
-
-WORKDIR /app
-
-ENV NODE_ENV=production
-
-# Install only prod dependencies
-COPY package.json package-lock.json* yarn.lock* ./
-RUN npm install --omit=dev
-
-# Copy built app & generated Prisma client
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/data.db ./data.db
-COPY --from=builder /app/.env ./
-
-# Expose port
 EXPOSE 8080
 
-CMD ["node", "dist/app.js"]
+# Default command: auto-generate prisma client, then run dev mode
+CMD npx prisma generate && npm run dev
